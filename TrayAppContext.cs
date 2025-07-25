@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -26,12 +27,13 @@ namespace LazyControl
             var contextMenu = new ContextMenuStrip();
             contextMenu.Items.Add("Settings", null, OnSettingsClick);
             contextMenu.Items.Add("Quit", null, OnQuitClick);
-
+            var assembly = Assembly.GetExecutingAssembly();
+            using Stream? iconStream = assembly.GetManifestResourceStream("LazyControl.favicon.ico");
             // Tạo tray icon
             trayIcon = new NotifyIcon()
             {
                 //Icon = SystemIcons.Application, // Bạn có thể dùng icon riêng
-                Icon = new Icon("favicon.ico"),
+                Icon = new Icon(iconStream),
                 ContextMenuStrip = contextMenu,
                 Visible = true,
                 Text = "LazyControl"

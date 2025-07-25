@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,6 +29,9 @@ namespace LazyControl
         private bool wasMouseControlEnabledBeforeSystemKey = false;
         private bool isPausedBySystemKey = false;
         private System.Windows.Forms.Timer systemKeyCheckTimer;
+
+        private MonitorSwitcher monitorSwitcher;
+
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(Keys vKey);
 
@@ -36,8 +40,9 @@ namespace LazyControl
             InitializeComponent();
 
             highlightForm = new CursorHighlightForm();
-
-            this.Icon = new Icon("favicon.ico"); // Đảm bảo file tồn tại và đúng định dạng
+            var assembly = Assembly.GetExecutingAssembly();
+            using Stream? iconStream = assembly.GetManifestResourceStream("LazyControl.favicon.ico");
+            this.Icon = new Icon(iconStream); // Đảm bảo file tồn tại và đúng định dạng
 
             cursorIndicator = new CursorIndicatorForm();
 
@@ -51,7 +56,19 @@ namespace LazyControl
             systemKeyCheckTimer.Tick += CheckSystemKeysReleased;
             systemKeyCheckTimer.Start();
 
+            monitorSwitcher = new MonitorSwitcher();
+
             var _ = this.Handle; // Dòng này để trigger cho phép có thể bật tắt chế độ ngay từ lần đầu bật ứng dụng
+        }
+
+        [Flags]
+        public enum KeyModifiers
+        {
+            None = 0,
+            Alt = 1,
+            Control = 2,
+            Shift = 4,
+            Win = 8
         }
 
         protected override void OnLoad(EventArgs e)
@@ -63,12 +80,18 @@ namespace LazyControl
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
-            Win32.RegisterHotKey(this.Handle, 1, 0, (int)Keys.F8);
+            Win32.RegisterHotKey(this.Handle, 1, (int)KeyModifiers.Alt, (int)Keys.J);
+
+            // Đăng ký hotkey cho chuyển monitor
+            Win32.RegisterHotKey(this.Handle, 2, 0, (int)Keys.F1); // F1 -> Monitor 2
+            Win32.RegisterHotKey(this.Handle, 3, 0, (int)Keys.F2); // F2 -> Monitor 1
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
         {
             Win32.UnregisterHotKey(this.Handle, 1);
+            Win32.UnregisterHotKey(this.Handle, 2);
+            Win32.UnregisterHotKey(this.Handle, 3);
             base.OnHandleDestroyed(e);
         }
 
@@ -93,6 +116,8 @@ namespace LazyControl
                 isLeftMouseDown = false;
             }
 
+            monitorSwitcher?.Dispose();
+
             base.OnFormClosing(e);
         }
 
@@ -100,28 +125,43 @@ namespace LazyControl
         {
             if (m.Msg == 0x0312) // WM_HOTKEY
             {
-                mouseControlEnabled = !mouseControlEnabled;
-                this.Text = $"Mouse Control: {(mouseControlEnabled ? "ON" : "OFF")}";
+                int hotkeyId = m.WParam.ToInt32();
 
-                if (mouseControlEnabled)
+                switch (hotkeyId)
                 {
-                    highlightForm.ShowHighlight();
-                }
-                else
-                {
-                    highlightForm.HideHighlight();
+                    case 1: // Alt + J - Toggle mouse control
+                        mouseControlEnabled = !mouseControlEnabled;
+                        this.Text = $"Mouse Control: {(mouseControlEnabled ? "ON" : "OFF")}";
 
-                    lock (lockObject)
-                    {
-                        pressedKeys.Clear();
-                        movementTokenSource?.Cancel();
-
-                        if (isLeftMouseDown)
+                        if (mouseControlEnabled)
                         {
-                            Win32.LeftMouseUp();
-                            isLeftMouseDown = false;
+                            highlightForm.ShowHighlight();
                         }
-                    }
+                        else
+                        {
+                            highlightForm.HideHighlight();
+
+                            lock (lockObject)
+                            {
+                                pressedKeys.Clear();
+                                movementTokenSource?.Cancel();
+
+                                if (isLeftMouseDown)
+                                {
+                                    Win32.LeftMouseUp();
+                                    isLeftMouseDown = false;
+                                }
+                            }
+                        }
+                        break;
+
+                    case 2: // F1 - Switch to Monitor 2
+                        monitorSwitcher.ActivateWindowOnMonitor(2);
+                        break;
+
+                    case 3: // F2 - Switch to Monitor 1
+                        monitorSwitcher.ActivateWindowOnMonitor(1);
+                        break;
                 }
             }
 
@@ -131,6 +171,13 @@ namespace LazyControl
         private bool OnKeyDown(Keys key)
         {
             if (!mouseControlEnabled) return false;
+
+            // Nếu giữ Alt + D, bỏ qua để hệ điều hành xử lý
+            var isPressingAltKey = (Control.ModifierKeys & Keys.Alt) == Keys.Alt;
+            if (isPressingAltKey && key == Keys.D)
+            {
+                return false; // Không xử lý phím này, để hệ thống xử lý
+            }
 
             // Nếu người dùng nhấn các nút như Ctrl hoặc Windown thì tạm disable đi trong trường hợp này để người dùng sử dụng các chức năng khác, ví dụ như Window + Shift + S
             if ((key == Keys.LControlKey || key == Keys.RControlKey || key == Keys.LWin || key == Keys.RWin) && !isPausedBySystemKey)
@@ -181,6 +228,11 @@ namespace LazyControl
                     return true;
 
                 case Keys.J:
+                    // Vì Alt + J là phím bật tắt phần mềm
+                    if (isPressingAltKey)
+                    {
+                        return false;
+                    }
                     if (!isLeftMouseDown)
                     {
                         Win32.LeftMouseDown();
@@ -199,7 +251,7 @@ namespace LazyControl
         private bool OnKeyUp(Keys key)
         {
             if (!mouseControlEnabled) return false;
-
+            
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
                 lock (lockObject)
