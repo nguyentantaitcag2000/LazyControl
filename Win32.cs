@@ -18,8 +18,11 @@ public static class Win32
     [DllImport("user32.dll")]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    // 2 Thư viện customize hình dạng cursor
+    // Thêm các hàm để điều khiển âm lượng
+    [DllImport("user32.dll")]
+    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
+    // 2 Thư viện customize hình dạng cursor
     [DllImport("user32.dll")]
     private static extern IntPtr LoadCursorFromFile(string fileName);
 
@@ -31,11 +34,18 @@ public static class Win32
     private const int MOUSEEVENTF_LEFTUP = 0x04;
     private const int MOUSEEVENTF_RIGHTDOWN = 0x08;
     private const int MOUSEEVENTF_RIGHTUP = 0x10;
+    private const int MOUSEEVENTF_MIDDLEDOWN = 0x20;
+    private const int MOUSEEVENTF_MIDDLEUP = 0x40;
     private const int MOUSEEVENTF_WHEEL = 0x0800;
     private const int MOUSEEVENTF_HWHEEL = 0x01000; // Horizontal wheel flag
 
     // Scroll wheel values
     private const int WHEEL_DELTA = 120;
+
+    // Volume control constants
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const byte VK_VOLUME_DOWN = 0xAE;
+    private const byte VK_VOLUME_UP = 0xAF;
 
     /// <summary>
     /// Click chuột trái (down + up nhanh)
@@ -72,6 +82,15 @@ public static class Win32
     }
 
     /// <summary>
+    /// Click chuột giữa
+    /// </summary>
+    public static void MiddleClick()
+    {
+        mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0);
+        mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0);
+    }
+
+    /// <summary>
     /// Scroll lên
     /// </summary>
     public static void ScrollUp()
@@ -101,5 +120,23 @@ public static class Win32
     public static void ScrollRight()
     {
         mouse_event(MOUSEEVENTF_HWHEEL, 0, 0, WHEEL_DELTA, 0);
+    }
+
+    /// <summary>
+    /// Giảm âm lượng
+    /// </summary>
+    public static void VolumeDown()
+    {
+        keybd_event(VK_VOLUME_DOWN, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_VOLUME_DOWN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+    }
+
+    /// <summary>
+    /// Tăng âm lượng
+    /// </summary>
+    public static void VolumeUp()
+    {
+        keybd_event(VK_VOLUME_UP, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_VOLUME_UP, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
     }
 }

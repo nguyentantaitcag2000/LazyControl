@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Reflection;
@@ -32,6 +33,9 @@ namespace LazyControl
 
         private MonitorSwitcher monitorSwitcher;
 
+        // Thêm biến để theo dõi trạng thái phím ESC
+        private bool isEscPressed = false;
+
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(Keys vKey);
 
@@ -58,7 +62,26 @@ namespace LazyControl
 
             monitorSwitcher = new MonitorSwitcher();
 
+            RegisterInStartup(true);
+
             var _ = this.Handle; // Dòng này để trigger cho phép có thể bật tắt chế độ ngay từ lần đầu bật ứng dụng
+        }
+
+        public static void RegisterInStartup(bool isEnable)
+        {
+            string appName = "LazyControl"; // Tên app của bạn (hiện trong Task Manager Startup)
+            string exePath = Application.ExecutablePath; // Lấy đường dẫn đến file .exe
+
+            RegistryKey reg = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
+
+            if (isEnable)
+            {
+                reg.SetValue(appName, "\"" + exePath + "\"");
+            }
+            else
+            {
+                reg.DeleteValue(appName, false);
+            }
         }
 
         [Flags]
@@ -82,16 +105,12 @@ namespace LazyControl
             base.OnHandleCreated(e);
             Win32.RegisterHotKey(this.Handle, 1, (int)KeyModifiers.Alt, (int)Keys.J);
 
-            // Đăng ký hotkey cho chuyển monitor
-            Win32.RegisterHotKey(this.Handle, 2, 0, (int)Keys.F1); // F1 -> Monitor 2
-            Win32.RegisterHotKey(this.Handle, 3, 0, (int)Keys.F2); // F2 -> Monitor 1
+            // Không cần đăng ký F1/F2 nữa vì sẽ xử lý thông qua keyboard hook
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
         {
             Win32.UnregisterHotKey(this.Handle, 1);
-            Win32.UnregisterHotKey(this.Handle, 2);
-            Win32.UnregisterHotKey(this.Handle, 3);
             base.OnHandleDestroyed(e);
         }
 
@@ -129,7 +148,7 @@ namespace LazyControl
 
                 switch (hotkeyId)
                 {
-                    case 1: // Alt + J - Toggle mouse control
+                    case 1: // Win + J - Toggle mouse control
                         mouseControlEnabled = !mouseControlEnabled;
                         this.Text = $"Mouse Control: {(mouseControlEnabled ? "ON" : "OFF")}";
 
@@ -154,14 +173,6 @@ namespace LazyControl
                             }
                         }
                         break;
-
-                    case 2: // F1 - Switch to Monitor 2
-                        monitorSwitcher.ActivateWindowOnMonitor(2);
-                        break;
-
-                    case 3: // F2 - Switch to Monitor 1
-                        monitorSwitcher.ActivateWindowOnMonitor(1);
-                        break;
                 }
             }
 
@@ -170,6 +181,42 @@ namespace LazyControl
 
         private bool OnKeyDown(Keys key)
         {
+            // Xử lý phím ESC để theo dõi trạng thái
+            if (key == Keys.Escape)
+            {
+                isEscPressed = true;
+                return false; // Cho phép ESC hoạt động bình thường
+            }
+
+            // Xử lý ESC + F1/F2 cho chuyển monitor
+            if (isEscPressed && (key == Keys.F1 || key == Keys.F2))
+            {
+                var currentSettings = SettingsManager.LoadSettings();
+                if (key == Keys.F1)
+                {
+                    monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF1); // ESC + F1 -> Monitor 2
+                }
+                else if (key == Keys.F2)
+                {
+                    monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF2); // ESC + F2 -> Monitor 1
+                }
+                return true; // Chặn xử lý mặc định của F1/F2
+            }
+
+            // Xử lý ESC + F7/F8 cho điều khiển âm lượng
+            if (isEscPressed && (key == Keys.F7 || key == Keys.F8))
+            {
+                if (key == Keys.F7)
+                {
+                    Win32.VolumeDown(); // ESC + F7 -> Giảm âm lượng
+                }
+                else if (key == Keys.F8)
+                {
+                    Win32.VolumeUp(); // ESC + F8 -> Tăng âm lượng
+                }
+                return true; // Chặn xử lý mặc định của F7/F8
+            }
+
             if (!mouseControlEnabled) return false;
 
             // Nếu giữ Alt + D, bỏ qua để hệ điều hành xử lý
@@ -228,7 +275,7 @@ namespace LazyControl
                     return true;
 
                 case Keys.J:
-                    // Vì Alt + J là phím bật tắt phần mềm
+                    // Vì Win + J là phím bật tắt phần mềm
                     if (isPressingAltKey)
                     {
                         return false;
@@ -243,6 +290,10 @@ namespace LazyControl
                 case Keys.K:
                     Win32.RightClick();
                     return true;
+
+                case Keys.M:
+                    Win32.MiddleClick();
+                    return true;
             }
 
             return false;
@@ -250,8 +301,15 @@ namespace LazyControl
 
         private bool OnKeyUp(Keys key)
         {
+            // Reset trạng thái ESC khi thả phím
+            if (key == Keys.Escape)
+            {
+                isEscPressed = false;
+                return false; // Cho phép ESC hoạt động bình thường
+            }
+
             if (!mouseControlEnabled) return false;
-            
+
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
                 lock (lockObject)
@@ -276,7 +334,7 @@ namespace LazyControl
                 return true;
             }
 
-            if (key == Keys.F || key == Keys.K)
+            if (key == Keys.F || key == Keys.K || key == Keys.M)
             {
                 return true;
             }

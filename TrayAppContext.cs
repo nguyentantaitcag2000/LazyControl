@@ -10,17 +10,19 @@ namespace LazyControl
     public class TrayAppContext : ApplicationContext
     {
         private NotifyIcon trayIcon;
-        private Form1 settingsForm;
+        private SettingsForm settingsForm;
+        private Form1 form1 { get; set; }
 
         public TrayAppContext()
         {
             // Tạo form nhưng chưa hiển thị
-            settingsForm = new Form1();
-            settingsForm.FormClosing += (s, e) =>
+            form1 = new Form1();
+            settingsForm = new SettingsForm();
+            form1.FormClosing += (s, e) =>
             {
                 // Khi đóng form, ẩn đi chứ không thoát app
                 e.Cancel = true;
-                settingsForm.Hide();
+                form1.Hide();
             };
 
             // Tạo context menu
