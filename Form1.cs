@@ -291,7 +291,7 @@ namespace LazyControl
                     Win32.RightClick();
                     return true;
 
-                case Keys.M:
+                case Keys.N:
                     Win32.MiddleClick();
                     return true;
             }

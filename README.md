@@ -20,7 +20,7 @@
 ### Click chuột
 - Trái: `J`
 - Phải: `K`
-- Giữa: `M` -> Thường sử dụng để tắt nhanh các tab trình duyệt hoặc các tab ở các phần mềm khác
+- Giữa: `N` -> Thường sử dụng để tắt nhanh các tab trình duyệt hoặc các tab ở các phần mềm khác
 ### Select text 
 - Y như hành vi dùng chuột, ở 1 điểm nhấn nghiến `J` sau đó di chuyển cursor `A`/`W`/`D`/`S`
 
