@@ -21,6 +21,9 @@ namespace LazyControl
                 MessageBox.Show("Application is running", "Notify", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
+            // Kiểm tra cập nhật ứng dụng
+            AutoUpdater.InstalledVersion = new Version("1.0.0.1");
+            AutoUpdater.Start("https://storage-test.lazycodet.com/products/lazycontrol/AutoUpdater.xml");
 
             // Chạy ứng dụng như bình thường
             Application.EnableVisualStyles();
@@ -29,8 +32,7 @@ namespace LazyControl
 
             // Giải phóng mutex sau khi ứng dụng thoát
             _mutex.ReleaseMutex();
-
-            AutoUpdater.Start("https://storage-test.lazycodet.com/products/lazycontrol/AutoUpdater.xml");
+            
         }
     }
 }
