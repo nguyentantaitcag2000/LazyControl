@@ -36,6 +36,8 @@ namespace LazyControl
         // Thêm biến để theo dõi trạng thái phím ESC
         private bool isEscPressed = false;
 
+
+
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(Keys vKey);
 
@@ -66,6 +68,7 @@ namespace LazyControl
 
             var _ = this.Handle; // Dòng này để trigger cho phép có thể bật tắt chế độ ngay từ lần đầu bật ứng dụng
         }
+
         /// <summary>
         /// Sau khi chạy hàm này nó sẽ lưu file startup ở registry, có thể tìm nó ở:
         /// 1. Mở Registry Editor (Win + R, gõ regedit)
@@ -109,7 +112,7 @@ namespace LazyControl
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
-            Win32.RegisterHotKey(this.Handle, 1, (int)KeyModifiers.Alt, (int)Keys.J);
+            Win32.RegisterHotKey(this.Handle, 1, (int)KeyModifiers.Control, (int)Keys.J);
 
             // Không cần đăng ký F1/F2 nữa vì sẽ xử lý thông qua keyboard hook
         }
@@ -154,13 +157,16 @@ namespace LazyControl
 
                 switch (hotkeyId)
                 {
-                    case 1: // Win + J - Toggle mouse control
+                    case 1: // Ctrl + J - Toggle mouse control
                         mouseControlEnabled = !mouseControlEnabled;
                         this.Text = $"Mouse Control: {(mouseControlEnabled ? "ON" : "OFF")}";
 
                         if (mouseControlEnabled)
                         {
                             highlightForm.ShowHighlight();
+                            // Reset trạng thái pause nếu có
+                            isPausedBySystemKey = false;
+                            wasMouseControlEnabledBeforeSystemKey = false;
                         }
                         else
                         {
@@ -232,10 +238,56 @@ namespace LazyControl
                 return false; // Không xử lý phím này, để hệ thống xử lý
             }
 
-            // Nếu người dùng nhấn các nút như Ctrl hoặc Windown thì tạm disable đi trong trường hợp này để người dùng sử dụng các chức năng khác, ví dụ như Window + Shift + S
+            // Kiểm tra nếu Ctrl+J đang được nhấn (kiểm tra cả Ctrl và J cùng lúc)
+            bool isCtrlPressed = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
+                                (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
+            bool isJPressed = (GetAsyncKeyState(Keys.J) & 0x8000) != 0;
+
+            // Nếu đang nhấn Ctrl+J thì không disable ứng dụng
+            if (isCtrlPressed && (key == Keys.J || isJPressed))
+            {
+                return false; // Để hotkey xử lý
+            }
+
+            // Nếu người dùng nhấn các nút như Ctrl hoặc Windows thì tạm disable đi trong trường hợp này để người dùng sử dụng các chức năng khác, ví dụ như Window + Shift + S
             if ((key == Keys.LControlKey || key == Keys.RControlKey || key == Keys.LWin || key == Keys.RWin) && !isPausedBySystemKey)
             {
-                if (mouseControlEnabled)
+                // Thêm delay nhỏ để kiểm tra xem có phải Ctrl+J không (chỉ áp dụng cho Ctrl)
+                if (key == Keys.LControlKey || key == Keys.RControlKey)
+                {
+                    Task.Delay(50).ContinueWith(_ => {
+                        bool ctrlStillPressed = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
+                                               (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
+                        bool jPressed = (GetAsyncKeyState(Keys.J) & 0x8000) != 0;
+
+                        // Chỉ disable nếu không phải Ctrl+J
+                        if (ctrlStillPressed && !jPressed && mouseControlEnabled && !isPausedBySystemKey)
+                        {
+                            this.Invoke(new Action(() => {
+                                wasMouseControlEnabledBeforeSystemKey = true;
+                                mouseControlEnabled = false;
+                                isPausedBySystemKey = true;
+
+                                this.Text = "Mouse Control: OFF (Paused)";
+                                highlightForm.HideHighlight();
+
+                                lock (lockObject)
+                                {
+                                    pressedKeys.Clear();
+                                    movementTokenSource?.Cancel();
+
+                                    if (isLeftMouseDown)
+                                    {
+                                        Win32.LeftMouseUp();
+                                        isLeftMouseDown = false;
+                                    }
+                                }
+                            }));
+                        }
+                    });
+                }
+                // Đối với phím Windows, disable ngay lập tức
+                else if ((key == Keys.LWin || key == Keys.RWin) && mouseControlEnabled)
                 {
                     wasMouseControlEnabledBeforeSystemKey = true;
                     mouseControlEnabled = false;
@@ -256,6 +308,7 @@ namespace LazyControl
                         }
                     }
                 }
+
                 return false;
             }
 
@@ -281,11 +334,7 @@ namespace LazyControl
                     return true;
 
                 case Keys.J:
-                    // Vì Win + J là phím bật tắt phần mềm
-                    if (isPressingAltKey)
-                    {
-                        return false;
-                    }
+                    // Bây giờ không cần kiểm tra Alt nữa vì đã đổi sang Ctrl+J
                     if (!isLeftMouseDown)
                     {
                         Win32.LeftMouseDown();

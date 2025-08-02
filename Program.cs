@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading;
-using System.Windows.Forms;
+﻿using AutoUpdaterDotNET;
 
 namespace LazyControl
 {
@@ -31,6 +29,8 @@ namespace LazyControl
 
             // Giải phóng mutex sau khi ứng dụng thoát
             _mutex.ReleaseMutex();
+
+            AutoUpdater.Start("https://storage-test.lazycodet.com/products/lazycontrol/AutoUpdater.xml");
         }
     }
 }
