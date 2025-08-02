@@ -33,6 +33,12 @@ namespace LazyControl
         // Thêm timer để kiểm tra và tái tạo hook nếu cần
         private System.Windows.Forms.Timer hookHealthCheckTimer;
 
+        // Thêm biến để track trạng thái Ctrl+J
+        private bool isCtrlPressed = false;
+        private bool isJPressed = false;
+        private bool ctrlJProcessed = false; // Để tránh xử lý nhiều lần
+
+
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(Keys vKey);
 
@@ -158,14 +164,15 @@ namespace LazyControl
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
-            Win32.RegisterHotKey(this.Handle, 1, (int)KeyModifiers.Control, (int)Keys.J);
-
-            // Không cần đăng ký F1/F2 nữa vì sẽ xử lý thông qua keyboard hook
+            // BỎ đăng ký hotkey Ctrl+J vì sẽ xử lý trực tiếp trong keyboard hook
+            // Win32.RegisterHotKey(this.Handle, 1, (int)KeyModifiers.Control, (int)Keys.J);
         }
+
 
         protected override void OnHandleDestroyed(EventArgs e)
         {
-            Win32.UnregisterHotKey(this.Handle, 1);
+            // BỎ unregister hotkey Ctrl+J
+            // Win32.UnregisterHotKey(this.Handle, 1);
             base.OnHandleDestroyed(e);
         }
 
@@ -245,6 +252,73 @@ namespace LazyControl
 
         private bool OnKeyDown(Keys key)
         {
+            // Track trạng thái Ctrl
+            if (key == Keys.LControlKey || key == Keys.RControlKey)
+            {
+                isCtrlPressed = true;
+                ctrlJProcessed = false; // Reset flag khi nhấn Ctrl mới
+                return false; // Cho phép Ctrl hoạt động bình thường
+            }
+
+            // Track trạng thái J
+            if (key == Keys.J)
+            {
+                isJPressed = true;
+
+                // XỬ LÝ CTRL+J TRỰC TIẾP TẠI ĐÂY
+                if (isCtrlPressed && !ctrlJProcessed)
+                {
+                    ctrlJProcessed = true; // Đánh dấu đã xử lý để tránh lặp
+
+                    // Toggle mouse control
+                    mouseControlEnabled = !mouseControlEnabled;
+                    this.Text = $"Mouse Control: {(mouseControlEnabled ? "ON" : "OFF")}";
+
+                    if (mouseControlEnabled)
+                    {
+                        highlightForm.ShowHighlight();
+                        // Reset trạng thái pause nếu có
+                        isPausedBySystemKey = false;
+                        wasMouseControlEnabledBeforeSystemKey = false;
+
+                        // Force refresh hook để đảm bảo nó hoạt động
+                        keyboardHook?.ForceRefresh();
+                    }
+                    else
+                    {
+                        highlightForm.HideHighlight();
+
+                        lock (lockObject)
+                        {
+                            pressedKeys.Clear();
+                            movementTokenSource?.Cancel();
+
+                            if (isLeftMouseDown)
+                            {
+                                Win32.LeftMouseUp();
+                                isLeftMouseDown = false;
+                            }
+                        }
+                    }
+
+                    return true; // Chặn cả Ctrl và J khi xử lý Ctrl+J
+                }
+
+                // Nếu không có Ctrl hoặc đã xử lý rồi, xử lý J như mouse click
+                if (!isCtrlPressed && mouseControlEnabled && !isLeftMouseDown)
+                {
+                    Win32.LeftMouseDown();
+                    isLeftMouseDown = true;
+                    return true;
+                }
+
+                // Nếu có Ctrl nhưng đã xử lý rồi, chặn J để tránh mouse click
+                if (isCtrlPressed)
+                {
+                    return true;
+                }
+            }
+
             // Xử lý phím ESC để theo dõi trạng thái
             if (key == Keys.Escape)
             {
@@ -258,13 +332,13 @@ namespace LazyControl
                 var currentSettings = SettingsManager.LoadSettings();
                 if (key == Keys.F1)
                 {
-                    monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF1); // ESC + F1 -> Monitor 2
+                    monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF1);
                 }
                 else if (key == Keys.F2)
                 {
-                    monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF2); // ESC + F2 -> Monitor 1
+                    monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF2);
                 }
-                return true; // Chặn xử lý mặc định của F1/F2
+                return true;
             }
 
             // Xử lý ESC + F7/F8 cho điều khiển âm lượng
@@ -272,130 +346,61 @@ namespace LazyControl
             {
                 if (key == Keys.F7)
                 {
-                    Win32.VolumeDown(); // ESC + F7 -> Giảm âm lượng
+                    Win32.VolumeDown();
                 }
                 else if (key == Keys.F8)
                 {
-                    Win32.VolumeUp(); // ESC + F8 -> Tăng âm lượng
+                    Win32.VolumeUp();
                 }
-                return true; // Chặn xử lý mặc định của F7/F8
+                return true;
             }
 
             if (!mouseControlEnabled) return false;
 
-            // Kiểm tra nếu đang nhấn Ctrl cùng với các phím khác
-            bool isCtrlPressed = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
-                                (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
-
-            // Cho phép Ctrl + W (đóng tab) hoạt động bình thường
-            if (isCtrlPressed && key == Keys.W)
+            // Cho phép các tổ hợp phím Ctrl khác hoạt động bình thường
+            if (isCtrlPressed)
             {
-                return false; // Không chặn, để browser xử lý
-            }
-
-            // Cho phép Ctrl + T (tab mới) hoạt động bình thường
-            if (isCtrlPressed && key == Keys.T)
-            {
-                return false; // Không chặn, để browser xử lý
-            }
-
-            // Cho phép Ctrl + Tab (chuyển tab) hoạt động bình thường
-            if (isCtrlPressed && key == Keys.Tab)
-            {
-                return false; // Không chặn, để browser xử lý
-            }
-
-            // Cho phép Ctrl + Shift + Tab (chuyển tab ngược) hoạt động bình thường
-            bool isShiftPressed = (GetAsyncKeyState(Keys.LShiftKey) & 0x8000) != 0 ||
-                                 (GetAsyncKeyState(Keys.RShiftKey) & 0x8000) != 0;
-            if (isCtrlPressed && isShiftPressed && key == Keys.Tab)
-            {
-                return false; // Không chặn, để browser xử lý
+                if (key == Keys.W || key == Keys.T || key == Keys.Tab)
+                {
+                    return false; // Không chặn các tổ hợp Ctrl khác
+                }
             }
 
             // Nếu giữ Alt + D, bỏ qua để hệ điều hành xử lý
             var isPressingAltKey = (Control.ModifierKeys & Keys.Alt) == Keys.Alt;
             if (isPressingAltKey && key == Keys.D)
             {
-                return false; // Không xử lý phím này, để hệ thống xử lý
+                return false;
             }
 
-            // Kiểm tra nếu Ctrl+J đang được nhấn (kiểm tra cả Ctrl và J cùng lúc)
-            bool isJPressed = (GetAsyncKeyState(Keys.J) & 0x8000) != 0;
-
-            // Nếu đang nhấn Ctrl+J thì không disable ứng dụng
-            if (isCtrlPressed && (key == Keys.J || isJPressed))
+            // Xử lý Windows key - disable mouse control tạm thời
+            if ((key == Keys.LWin || key == Keys.RWin) && !isPausedBySystemKey)
             {
-                return false; // Để hotkey xử lý
-            }
+                wasMouseControlEnabledBeforeSystemKey = true;
+                mouseControlEnabled = false;
+                isPausedBySystemKey = true;
 
-            // Nếu người dùng nhấn các nút như Ctrl hoặc Windows thì tạm disable đi trong trường hợp này để người dùng sử dụng các chức năng khác, ví dụ như Window + Shift + S
-            if ((key == Keys.LControlKey || key == Keys.RControlKey || key == Keys.LWin || key == Keys.RWin) && !isPausedBySystemKey)
-            {
-                // Thêm delay nhỏ để kiểm tra xem có phải Ctrl+J không (chỉ áp dụng cho Ctrl)
-                if (key == Keys.LControlKey || key == Keys.RControlKey)
+                this.Text = "Mouse Control: OFF (Paused)";
+                highlightForm.HideHighlight();
+
+                lock (lockObject)
                 {
-                    Task.Delay(50).ContinueWith(_ => {
-                        bool ctrlStillPressed = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
-                                               (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
-                        bool jPressed = (GetAsyncKeyState(Keys.J) & 0x8000) != 0;
+                    pressedKeys.Clear();
+                    movementTokenSource?.Cancel();
 
-                        // Chỉ disable nếu không phải Ctrl+J
-                        if (ctrlStillPressed && !jPressed && mouseControlEnabled && !isPausedBySystemKey)
-                        {
-                            this.Invoke(new Action(() => {
-                                wasMouseControlEnabledBeforeSystemKey = true;
-                                mouseControlEnabled = false;
-                                isPausedBySystemKey = true;
-
-                                this.Text = "Mouse Control: OFF (Paused)";
-                                highlightForm.HideHighlight();
-
-                                lock (lockObject)
-                                {
-                                    pressedKeys.Clear();
-                                    movementTokenSource?.Cancel();
-
-                                    if (isLeftMouseDown)
-                                    {
-                                        Win32.LeftMouseUp();
-                                        isLeftMouseDown = false;
-                                    }
-                                }
-                            }));
-                        }
-                    });
-                }
-                // Đối với phím Windows, disable ngay lập tức
-                else if ((key == Keys.LWin || key == Keys.RWin) && mouseControlEnabled)
-                {
-                    wasMouseControlEnabledBeforeSystemKey = true;
-                    mouseControlEnabled = false;
-                    isPausedBySystemKey = true;
-
-                    this.Text = "Mouse Control: OFF (Paused)";
-                    highlightForm.HideHighlight();
-
-                    lock (lockObject)
+                    if (isLeftMouseDown)
                     {
-                        pressedKeys.Clear();
-                        movementTokenSource?.Cancel();
-
-                        if (isLeftMouseDown)
-                        {
-                            Win32.LeftMouseUp();
-                            isLeftMouseDown = false;
-                        }
+                        Win32.LeftMouseUp();
+                        isLeftMouseDown = false;
                     }
                 }
 
                 return false;
             }
 
-            // Chỉ xử lý các phím di chuyển khi KHÔNG có Ctrl được nhấn
+            // Xử lý phím di chuyển - chỉ khi KHÔNG có Ctrl
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
-                // Nếu đang nhấn Ctrl, không xử lý như phím di chuyển
                 if (isCtrlPressed)
                 {
                     return false; // Cho phép tổ hợp phím Ctrl hoạt động bình thường
@@ -420,15 +425,6 @@ namespace LazyControl
                 case Keys.F:
                     return true;
 
-                case Keys.J:
-                    // Bây giờ không cần kiểm tra Alt nữa vì đã đổi sang Ctrl+J
-                    if (!isLeftMouseDown)
-                    {
-                        Win32.LeftMouseDown();
-                        isLeftMouseDown = true;
-                    }
-                    return true;
-
                 case Keys.K:
                     Win32.RightClick();
                     return true;
@@ -443,25 +439,48 @@ namespace LazyControl
 
         private bool OnKeyUp(Keys key)
         {
+            // Track trạng thái Ctrl
+            if (key == Keys.LControlKey || key == Keys.RControlKey)
+            {
+                isCtrlPressed = false;
+                ctrlJProcessed = false; // Reset khi thả Ctrl
+                return false;
+            }
+
+            // Track trạng thái J
+            if (key == Keys.J)
+            {
+                isJPressed = false;
+
+                // Chỉ xử lý mouse up khi KHÔNG có Ctrl và đang mouse down
+                if (!isCtrlPressed && mouseControlEnabled && isLeftMouseDown)
+                {
+                    Win32.LeftMouseUp();
+                    isLeftMouseDown = false;
+                    return true;
+                }
+
+                // Nếu có Ctrl, vẫn chặn để tránh side effect
+                if (isCtrlPressed)
+                {
+                    return true;
+                }
+            }
+
             // Reset trạng thái ESC khi thả phím
             if (key == Keys.Escape)
             {
                 isEscPressed = false;
-                return false; // Cho phép ESC hoạt động bình thường
+                return false;
             }
 
             if (!mouseControlEnabled) return false;
 
-            // Kiểm tra nếu đang nhấn Ctrl
-            bool isCtrlPressed = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
-                                (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
-
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
-                // Nếu đang nhấn Ctrl, không xử lý như phím di chuyển
                 if (isCtrlPressed)
                 {
-                    return false; // Cho phép tổ hợp phím Ctrl hoạt động bình thường
+                    return false;
                 }
 
                 lock (lockObject)
@@ -476,16 +495,6 @@ namespace LazyControl
                 return true;
             }
 
-            if (key == Keys.J)
-            {
-                if (isLeftMouseDown)
-                {
-                    Win32.LeftMouseUp();
-                    isLeftMouseDown = false;
-                }
-                return true;
-            }
-
             if (key == Keys.F || key == Keys.K || key == Keys.M)
             {
                 return true;
@@ -493,7 +502,6 @@ namespace LazyControl
 
             return false;
         }
-
         private async Task MoveMouse(CancellationToken token)
         {
             double speed = 2.0;
@@ -597,13 +605,11 @@ namespace LazyControl
 
         private void CheckSystemKeysReleased(object sender, EventArgs e)
         {
-            bool ctrlDown = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
-                            (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
-
+            // Bỏ kiểm tra Ctrl vì giờ đã track trực tiếp trong keyboard hook
             bool winDown = (GetAsyncKeyState(Keys.LWin) & 0x8000) != 0 ||
                            (GetAsyncKeyState(Keys.RWin) & 0x8000) != 0;
 
-            if (!ctrlDown && !winDown && isPausedBySystemKey)
+            if (!winDown && isPausedBySystemKey)
             {
                 isPausedBySystemKey = false;
 
