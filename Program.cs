@@ -1,27 +1,36 @@
+﻿using System;
+using System.Threading;
+using System.Windows.Forms;
+
 namespace LazyControl
 {
     internal static class Program
     {
+        // Tên mutex duy nhất cho ứng dụng (nên là duy nhất toàn hệ thống)
+        private static Mutex? _mutex;
+
         [STAThread]
         static void Main()
         {
+            bool isNewInstance;
+
+            // Khởi tạo mutex với tên duy nhất
+            _mutex = new Mutex(true, "LazyControlAppMutex", out isNewInstance);
+
+            if (!isNewInstance)
+            {
+                // Nếu instance đã tồn tại, thông báo và thoát
+                MessageBox.Show("Application is running", "Notify", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Chạy ứng dụng như bình thường
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-
-            // Ch?y ?ng d?ng ?n b?ng context
             Application.Run(new TrayAppContext());
-        }
 
-        /// <summary>
-        ///  The main entry point for the application.
-        /// </summary>
-        //[STAThread]
-        //static void Main()
-        //{
-        //    // To customize application configuration such as set high DPI settings or default font,
-        //    // see https://aka.ms/applicationconfiguration.
-        //    ApplicationConfiguration.Initialize();
-        //    Application.Run(new Form1());
-        //}
+            // Giải phóng mutex sau khi ứng dụng thoát
+            _mutex.ReleaseMutex();
+        }
     }
 }

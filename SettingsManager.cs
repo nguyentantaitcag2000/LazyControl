@@ -11,9 +11,9 @@ namespace LazyControl
 {
     public static class SettingsManager
     {
-        
+
         private static readonly string SettingsFile = "settings.json";
-        
+
         public static AppSettings LoadSettings()
         {
             if (!File.Exists(SettingsFile))

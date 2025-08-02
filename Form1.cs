@@ -66,7 +66,13 @@ namespace LazyControl
 
             var _ = this.Handle; // Dòng này để trigger cho phép có thể bật tắt chế độ ngay từ lần đầu bật ứng dụng
         }
-
+        /// <summary>
+        /// Sau khi chạy hàm này nó sẽ lưu file startup ở registry, có thể tìm nó ở:
+        /// 1. Mở Registry Editor (Win + R, gõ regedit)
+        /// 2. Đi tới khóa: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
+        /// 3. Tìm giá trị LazyControl
+        /// </summary>
+        /// <param name="isEnable"></param>
         public static void RegisterInStartup(bool isEnable)
         {
             string appName = "LazyControl"; // Tên app của bạn (hiện trong Task Manager Startup)
