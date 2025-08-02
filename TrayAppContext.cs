@@ -38,7 +38,7 @@ namespace LazyControl
                 Icon = new Icon(iconStream),
                 ContextMenuStrip = contextMenu,
                 Visible = true,
-                Text = "LazyControl"
+                Text = "LazyControl v" + Configuration.VERSION
             };
 
             trayIcon.DoubleClick += OnSettingsClick; // Nháy đúp cũng mở form

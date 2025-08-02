@@ -1,4 +1,5 @@
 ﻿using Microsoft.Win32;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -69,7 +70,7 @@ namespace LazyControl
 
             monitorSwitcher = new MonitorSwitcher();
 
-            RegisterInStartup(true);
+            AppInstaller.EnsureInstalled();
 
             var _ = this.Handle; // Dòng này để trigger cho phép có thể bật tắt chế độ ngay từ lần đầu bật ứng dụng
         }
@@ -118,30 +119,6 @@ namespace LazyControl
                         hookHealthCheckTimer.Interval = 30000; // 30 giây
                     }
                 }
-            }
-        }
-
-        /// <summary>
-        /// Sau khi chạy hàm này nó sẽ lưu file startup ở registry, có thể tìm nó ở:
-        /// 1. Mở Registry Editor (Win + R, gõ regedit)
-        /// 2. Đi tới khóa: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
-        /// 3. Tìm giá trị LazyControl
-        /// </summary>
-        /// <param name="isEnable"></param>
-        public static void RegisterInStartup(bool isEnable)
-        {
-            string appName = "LazyControl"; // Tên app của bạn (hiện trong Task Manager Startup)
-            string exePath = Application.ExecutablePath; // Lấy đường dẫn đến file .exe
-
-            RegistryKey reg = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
-
-            if (isEnable)
-            {
-                reg.SetValue(appName, "\"" + exePath + "\"");
-            }
-            else
-            {
-                reg.DeleteValue(appName, false);
             }
         }
 

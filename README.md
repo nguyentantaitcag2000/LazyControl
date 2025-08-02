@@ -41,3 +41,9 @@ Nếu trong trường hợp bạn nhấn nó focus ngược màn hình, thì c�
 - Bên phím di chuyển `A`/`W`/`D`/`S` rất quen thuộc với ai chơi game, các nút này cũng thường là phím tắt di chuyển trong game
 - Chế độ chuột sẽ tự tắt đi khi mà bạn sử dụng các nút `Ctrl` và `Window` - Giúp bạn có thể sử dụng các nút chức năng của 1 máy tính cơ bản như `Ctrl` + `C` và `Ctrl` + `V`, `Window` + `Shift` + `S`,... mà không cần tắt đi chế độ di chuyển chuột của **LazyControl**.
 - Khi chế độ di chuyển chuột bật lên, bạn sẽ thấy 1 vòng tròn được highlight lên mờ mờ giúp bạn có thể nhận biết được mà có thể bật/tắt cho phù hợp
+
+
+## Cách deploy
+- Tăng số version ở file Configuration.cs `public const string VERSION = "1.0.0.13";`
+- Chạy file build-single.bat để tạo ứng dụng portable
+- Sau đó nó tạo ra thư mục `my-publish`, có chứa 2 file `.exe` và `.xml`, upload 2 file này lên R2

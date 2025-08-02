@@ -1,4 +1,5 @@
 ﻿using AutoUpdaterDotNET;
+using System;
 
 namespace LazyControl
 {
@@ -22,7 +23,8 @@ namespace LazyControl
                 return;
             }
             // Kiểm tra cập nhật ứng dụng
-            AutoUpdater.InstalledVersion = new Version("1.0.0.1");
+            AutoUpdater.InstalledVersion = new Version(Configuration.VERSION);
+            AutoUpdater.ClearAppDirectory = true;
             AutoUpdater.Start("https://storage-test.lazycodet.com/products/lazycontrol/AutoUpdater.xml");
 
             // Chạy ứng dụng như bình thường
