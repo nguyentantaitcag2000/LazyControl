@@ -1,12 +1,6 @@
 ﻿using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace LazyControl
 {
@@ -36,7 +30,8 @@ namespace LazyControl
         // Thêm biến để theo dõi trạng thái phím ESC
         private bool isEscPressed = false;
 
-
+        // Thêm timer để kiểm tra và tái tạo hook nếu cần
+        private System.Windows.Forms.Timer hookHealthCheckTimer;
 
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(Keys vKey);
@@ -52,21 +47,72 @@ namespace LazyControl
 
             cursorIndicator = new CursorIndicatorForm();
 
-            keyboardHook = new KeyboardHook();
-            keyboardHook.KeyDown += OnKeyDown;
-            keyboardHook.KeyUp += OnKeyUp;
-            keyboardHook.Start();
+            InitializeKeyboardHook();
 
             systemKeyCheckTimer = new System.Windows.Forms.Timer();
             systemKeyCheckTimer.Interval = 300; // 300ms kiểm tra một lần
             systemKeyCheckTimer.Tick += CheckSystemKeysReleased;
             systemKeyCheckTimer.Start();
 
+            // Timer để kiểm tra sức khỏe của hook
+            // Vì có trường hợp khi mà ứng dụng đang chạy bình thường nhưng khi người dùng mở lên chương trình gõ tiếng việt thì lúc này phần mềm gõ tiếng lại đăng kí các hook của nó cao hơn, nên chương trình của mình bị nó chiếm 1 số keys nên ta cần kiểm tra để đăng kí lại 
+            hookHealthCheckTimer = new System.Windows.Forms.Timer();
+            hookHealthCheckTimer.Interval = 1000; // 1 giây kiểm tra một lần
+            hookHealthCheckTimer.Tick += CheckHookHealth;
+            hookHealthCheckTimer.Start();
+
             monitorSwitcher = new MonitorSwitcher();
 
             RegisterInStartup(true);
 
             var _ = this.Handle; // Dòng này để trigger cho phép có thể bật tắt chế độ ngay từ lần đầu bật ứng dụng
+        }
+
+        private void InitializeKeyboardHook()
+        {
+            try
+            {
+                keyboardHook = new KeyboardHook();
+                keyboardHook.KeyDown += OnKeyDown;
+                keyboardHook.KeyUp += OnKeyUp;
+                keyboardHook.Start();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to initialize keyboard hook: {ex.Message}", "LazyControl Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void CheckHookHealth(object sender, EventArgs e)
+        {
+            // Kiểm tra xem hook có còn hoạt động không
+            if (keyboardHook != null && !keyboardHook.IsActive())
+            {
+                // Hook bị mất, tái tạo lại
+                try
+                {
+                    keyboardHook.Stop();
+                    keyboardHook.Start();
+
+                    // Hiển thị thông báo ngắn gọn
+                    this.Text = "Hook Restored - " + (mouseControlEnabled ? "Mouse Control: ON" : "Mouse Control: OFF");
+                }
+                catch
+                {
+                    // Nếu không thể tái tạo, thử tạo mới hoàn toàn
+                    try
+                    {
+                        keyboardHook?.Stop();
+                        InitializeKeyboardHook();
+                    }
+                    catch
+                    {
+                        // Nếu vẫn không được, tạm dừng check một lúc
+                        hookHealthCheckTimer.Interval = 30000; // 30 giây
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -134,7 +180,10 @@ namespace LazyControl
             }
 
             // Nếu thực sự thoát, cleanup
-            keyboardHook.Stop();
+            hookHealthCheckTimer?.Stop();
+            hookHealthCheckTimer?.Dispose();
+
+            keyboardHook?.Stop();
             Win32.UnregisterHotKey(this.Handle, 1);
             movementTokenSource?.Cancel();
 
@@ -167,6 +216,9 @@ namespace LazyControl
                             // Reset trạng thái pause nếu có
                             isPausedBySystemKey = false;
                             wasMouseControlEnabledBeforeSystemKey = false;
+
+                            // Force refresh hook để đảm bảo nó hoạt động
+                            keyboardHook?.ForceRefresh();
                         }
                         else
                         {
@@ -231,6 +283,36 @@ namespace LazyControl
 
             if (!mouseControlEnabled) return false;
 
+            // Kiểm tra nếu đang nhấn Ctrl cùng với các phím khác
+            bool isCtrlPressed = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
+                                (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
+
+            // Cho phép Ctrl + W (đóng tab) hoạt động bình thường
+            if (isCtrlPressed && key == Keys.W)
+            {
+                return false; // Không chặn, để browser xử lý
+            }
+
+            // Cho phép Ctrl + T (tab mới) hoạt động bình thường
+            if (isCtrlPressed && key == Keys.T)
+            {
+                return false; // Không chặn, để browser xử lý
+            }
+
+            // Cho phép Ctrl + Tab (chuyển tab) hoạt động bình thường
+            if (isCtrlPressed && key == Keys.Tab)
+            {
+                return false; // Không chặn, để browser xử lý
+            }
+
+            // Cho phép Ctrl + Shift + Tab (chuyển tab ngược) hoạt động bình thường
+            bool isShiftPressed = (GetAsyncKeyState(Keys.LShiftKey) & 0x8000) != 0 ||
+                                 (GetAsyncKeyState(Keys.RShiftKey) & 0x8000) != 0;
+            if (isCtrlPressed && isShiftPressed && key == Keys.Tab)
+            {
+                return false; // Không chặn, để browser xử lý
+            }
+
             // Nếu giữ Alt + D, bỏ qua để hệ điều hành xử lý
             var isPressingAltKey = (Control.ModifierKeys & Keys.Alt) == Keys.Alt;
             if (isPressingAltKey && key == Keys.D)
@@ -239,8 +321,6 @@ namespace LazyControl
             }
 
             // Kiểm tra nếu Ctrl+J đang được nhấn (kiểm tra cả Ctrl và J cùng lúc)
-            bool isCtrlPressed = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
-                                (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
             bool isJPressed = (GetAsyncKeyState(Keys.J) & 0x8000) != 0;
 
             // Nếu đang nhấn Ctrl+J thì không disable ứng dụng
@@ -312,8 +392,15 @@ namespace LazyControl
                 return false;
             }
 
+            // Chỉ xử lý các phím di chuyển khi KHÔNG có Ctrl được nhấn
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
+                // Nếu đang nhấn Ctrl, không xử lý như phím di chuyển
+                if (isCtrlPressed)
+                {
+                    return false; // Cho phép tổ hợp phím Ctrl hoạt động bình thường
+                }
+
                 lock (lockObject)
                 {
                     bool wasEmpty = pressedKeys.Count == 0;
@@ -365,8 +452,18 @@ namespace LazyControl
 
             if (!mouseControlEnabled) return false;
 
+            // Kiểm tra nếu đang nhấn Ctrl
+            bool isCtrlPressed = (GetAsyncKeyState(Keys.LControlKey) & 0x8000) != 0 ||
+                                (GetAsyncKeyState(Keys.RControlKey) & 0x8000) != 0;
+
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
+                // Nếu đang nhấn Ctrl, không xử lý như phím di chuyển
+                if (isCtrlPressed)
+                {
+                    return false; // Cho phép tổ hợp phím Ctrl hoạt động bình thường
+                }
+
                 lock (lockObject)
                 {
                     pressedKeys.Remove(key);
