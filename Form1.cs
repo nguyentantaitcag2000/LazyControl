@@ -34,11 +34,11 @@ namespace LazyControl
         // Thêm timer để kiểm tra và tái tạo hook nếu cần
         private System.Windows.Forms.Timer hookHealthCheckTimer;
 
-        // Thêm biến để track trạng thái Ctrl+J
+        // Thêm biến để track trạng thái Ctrl+J và Shift
         private bool isCtrlPressed = false;
+        private bool isShiftPressed = false; // THÊM MỚI
         private bool isJPressed = false;
         private bool ctrlJProcessed = false; // Để tránh xử lý nhiều lần
-
 
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(Keys vKey);
@@ -145,7 +145,6 @@ namespace LazyControl
             // Win32.RegisterHotKey(this.Handle, 1, (int)KeyModifiers.Control, (int)Keys.J);
         }
 
-
         protected override void OnHandleDestroyed(EventArgs e)
         {
             // BỎ unregister hotkey Ctrl+J
@@ -227,6 +226,44 @@ namespace LazyControl
             base.WndProc(ref m);
         }
 
+        // THÊM HÀM HELPER ĐỂ KIỂM TRA CÓ PHẢI SYSTEM HOTKEY KHÔNG
+        private bool IsSystemHotkey(Keys key)
+        {
+            // Kiểm tra các tổ hợp phím hệ thống quan trọng
+            if (isCtrlPressed)
+            {
+                // Các phím thường dùng với Ctrl
+                if (key == Keys.C || key == Keys.V || key == Keys.X || key == Keys.Z ||
+                    key == Keys.Y || key == Keys.A || key == Keys.F || key == Keys.H ||
+                    key == Keys.N || key == Keys.O || key == Keys.P || key == Keys.R ||
+                    key == Keys.S || key == Keys.T || key == Keys.W || key == Keys.Tab ||
+                    key == Keys.F4 || key == Keys.Enter || key == Keys.Home || key == Keys.End ||
+                    key == Keys.Left || key == Keys.Right || key == Keys.Up || key == Keys.Down)
+                {
+                    return true;
+                }
+
+                // Kiểm tra Ctrl+Shift combinations
+                if (isShiftPressed)
+                {
+                    // Ctrl+Shift+N, Ctrl+Shift+T, Ctrl+Shift+Tab, etc.
+                    if (key == Keys.N || key == Keys.T || key == Keys.Tab || key == Keys.Escape ||
+                        key == Keys.Delete || key == Keys.Z || key == Keys.Enter)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            // Alt combinations
+            if ((Control.ModifierKeys & Keys.Alt) == Keys.Alt)
+            {
+                return true; // Cho phép tất cả Alt combinations
+            }
+
+            return false;
+        }
+
         private bool OnKeyDown(Keys key)
         {
             // Track trạng thái Ctrl
@@ -237,13 +274,20 @@ namespace LazyControl
                 return false; // Cho phép Ctrl hoạt động bình thường
             }
 
+            // THÊM: Track trạng thái Shift
+            if (key == Keys.LShiftKey || key == Keys.RShiftKey)
+            {
+                isShiftPressed = true;
+                return false; // Cho phép Shift hoạt động bình thường
+            }
+
             // Track trạng thái J
             if (key == Keys.J)
             {
                 isJPressed = true;
 
-                // XỬ LÝ CTRL+J TRỰC TIẾP TẠI ĐÂY
-                if (isCtrlPressed && !ctrlJProcessed)
+                // XỬ LÝ CTRL+J TRỰC TIẾP TẠI ĐÂY - chỉ khi KHÔNG có Shift
+                if (isCtrlPressed && !isShiftPressed && !ctrlJProcessed)
                 {
                     ctrlJProcessed = true; // Đánh dấu đã xử lý để tránh lặp
 
@@ -281,7 +325,13 @@ namespace LazyControl
                     return true; // Chặn cả Ctrl và J khi xử lý Ctrl+J
                 }
 
-                // Nếu không có Ctrl hoặc đã xử lý rồi, xử lý J như mouse click
+                // Nếu có Ctrl+Shift+J hoặc tổ hợp khác, cho phép hệ thống xử lý
+                if (isCtrlPressed && isShiftPressed)
+                {
+                    return false; // Không chặn, để hệ thống xử lý
+                }
+
+                // Nếu không có Ctrl hoặc đã xử lý rồi, xử lý J như mouse click (chỉ khi mouse control bật)
                 if (!isCtrlPressed && mouseControlEnabled && !isLeftMouseDown)
                 {
                     Win32.LeftMouseDown();
@@ -290,7 +340,7 @@ namespace LazyControl
                 }
 
                 // Nếu có Ctrl nhưng đã xử lý rồi, chặn J để tránh mouse click
-                if (isCtrlPressed)
+                if (isCtrlPressed && !isShiftPressed)
                 {
                     return true;
                 }
@@ -339,13 +389,10 @@ namespace LazyControl
                 return false;
             }
 
-            // Cho phép các tổ hợp phím Ctrl khác hoạt động bình thường
-            if (isCtrlPressed)
+            // KIỂM TRA SYSTEM HOTKEY TRƯỚC KHI XỬ LÝ CÁC PHÍM DI CHUYỂN
+            if (IsSystemHotkey(key))
             {
-                if (key == Keys.W || key == Keys.T || key == Keys.Tab)
-                {
-                    return false; // Không chặn các tổ hợp Ctrl khác
-                }
+                return false; // Không chặn các tổ hợp phím hệ thống
             }
 
             // Nếu giữ Alt + D, bỏ qua để hệ điều hành xử lý
@@ -380,12 +427,13 @@ namespace LazyControl
                 return false;
             }
 
-            // Xử lý phím di chuyển - chỉ khi KHÔNG có Ctrl
+            // Xử lý phím di chuyển - CHỈ KHI KHÔNG CÓ MODIFIER KEYS
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
-                if (isCtrlPressed)
+                // Nếu có bất kỳ modifier key nào, cho phép hệ thống xử lý
+                if (isCtrlPressed || isShiftPressed || (Control.ModifierKeys & Keys.Alt) == Keys.Alt)
                 {
-                    return false; // Cho phép tổ hợp phím Ctrl hoạt động bình thường
+                    return false; // Cho phép tổ hợp phím với modifier hoạt động bình thường
                 }
 
                 lock (lockObject)
@@ -405,15 +453,30 @@ namespace LazyControl
             switch (key)
             {
                 case Keys.F:
-                    return true;
+                    // Chỉ chặn F khi không có modifier keys
+                    if (!isCtrlPressed && !isShiftPressed && (Control.ModifierKeys & Keys.Alt) != Keys.Alt)
+                    {
+                        return true;
+                    }
+                    return false;
 
                 case Keys.K:
-                    Win32.RightClick();
-                    return true;
+                    // Chỉ chặn K khi không có modifier keys
+                    if (!isCtrlPressed && !isShiftPressed && (Control.ModifierKeys & Keys.Alt) != Keys.Alt)
+                    {
+                        Win32.RightClick();
+                        return true;
+                    }
+                    return false;
 
                 case Keys.N:
-                    Win32.MiddleClick();
-                    return true;
+                    // Chỉ chặn N khi không có modifier keys
+                    if (!isCtrlPressed && !isShiftPressed && (Control.ModifierKeys & Keys.Alt) != Keys.Alt)
+                    {
+                        Win32.MiddleClick();
+                        return true;
+                    }
+                    return false;
             }
 
             return false;
@@ -426,6 +489,13 @@ namespace LazyControl
             {
                 isCtrlPressed = false;
                 ctrlJProcessed = false; // Reset khi thả Ctrl
+                return false;
+            }
+
+            // THÊM: Track trạng thái Shift
+            if (key == Keys.LShiftKey || key == Keys.RShiftKey)
+            {
+                isShiftPressed = false;
                 return false;
             }
 
@@ -442,8 +512,14 @@ namespace LazyControl
                     return true;
                 }
 
-                // Nếu có Ctrl, vẫn chặn để tránh side effect
-                if (isCtrlPressed)
+                // Nếu có Ctrl+Shift, không chặn
+                if (isCtrlPressed && isShiftPressed)
+                {
+                    return false;
+                }
+
+                // Nếu có Ctrl (không có Shift), vẫn chặn để tránh side effect
+                if (isCtrlPressed && !isShiftPressed)
                 {
                     return true;
                 }
@@ -469,7 +545,8 @@ namespace LazyControl
 
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
-                if (isCtrlPressed)
+                // Nếu có modifier keys, không xử lý như phím di chuyển
+                if (isCtrlPressed || isShiftPressed || (Control.ModifierKeys & Keys.Alt) == Keys.Alt)
                 {
                     return false;
                 }
@@ -486,13 +563,19 @@ namespace LazyControl
                 return true;
             }
 
-            if (key == Keys.F || key == Keys.K || key == Keys.M)
+            // Chỉ chặn các phím chức năng khi không có modifier keys
+            if (key == Keys.F || key == Keys.K || key == Keys.N)
             {
-                return true;
+                if (!isCtrlPressed && !isShiftPressed && (Control.ModifierKeys & Keys.Alt) != Keys.Alt)
+                {
+                    return true;
+                }
+                return false;
             }
 
             return false;
         }
+
         private async Task MoveMouse(CancellationToken token)
         {
             double speed = 2.0;
