@@ -318,8 +318,8 @@ namespace LazyControl
                 return true; // Chặn phím F1/F2 khi có ESC
             }
 
-            // Xử lý ESC + F7/F8 cho điều khiển âm lượng
-            if (isEscPressed && (key == Keys.F7 || key == Keys.F8))
+            // Xử lý Ctrl + F7/F8 cho điều khiển âm lượng
+            if (isCtrlPressed && (key == Keys.F7 || key == Keys.F8))
             {
                 if (key == Keys.F7)
                 {

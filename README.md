@@ -31,8 +31,8 @@
 - Giả sử bạn đang có cả chục ứng dụng đang mở trên máy, bạn sử dụng 2 màn hình, bạn đang mở 1 nàn hình để viết code, 1 màn hình để hiển thị trang web, trong lúc viết code, bạn muốn chuyển sang màn hình bên kia để tìm kiếm hoặc thao tác gì đó, bạn sẽ đưa tay ra lấy chuột chỉ để click focus vào trình duyệt trên màn hình đó để tìm kiếm, thao tác,... để tránh sự gườm rà này, tôi đã thiết lập 1 phím tắt để focus nhanh chóng, giả sử tôi set `ESC` + `F1` là màn hình bên trái, `ESC` + `F2` là màn hình bên phải, như vậy, mỗi lần tôi muốn chuyển qua lại giữa 2 màn hình chỉ cần nhấn `ESC` + `F1` hoặc `ESC` + `F2`
 
 ### Tăng/ giảm âm lượng
-- Giảm âm lượng: `ESC` + `F7`
-- Tăng âm lượng: `ESC` + `F8`
+- Giảm âm lượng: `Ctrl` + `F7`
+- Tăng âm lượng: `Ctrl` + `F8`
 
 Nếu trong trường hợp bạn nhấn nó focus ngược màn hình, thì cứ vào Setting để điều chỉnh lại nhé
 
