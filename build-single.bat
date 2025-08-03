@@ -19,12 +19,14 @@ if "%VERSION%"=="" (
 
 echo Found version: %VERSION%
 
-:: Tên project (thay LazyControl bằng tên project của bạn)
+:: Tên project (thay LazyControl.csproj nếu khác)
 set PROJECT_NAME=LazyControl
+set CSPROJ=LazyControl.csproj
+set OUTPUT_DIR=my-publish
 
 :: Publish
 echo Publishing application...
-dotnet publish -r win-x64 -c Release ^
+dotnet publish %CSPROJ% -r win-x64 -c Release ^
   -p:PublishSingleFile=true ^
   -p:IncludeAllContentForSelfExtract=true ^
   -p:SelfContained=true ^
@@ -38,13 +40,18 @@ if %errorlevel% neq 0 (
 
 :: Tìm và đổi tên file
 set NEW_NAME=%PROJECT_NAME%-%VERSION%.exe
-set OUTPUT_DIR=my-publish
 
-:: Tạo thư mục output (nếu chưa tồn tại)
+:: Tạo thư mục output nếu chưa tồn tại
 if not exist "%OUTPUT_DIR%" (
     mkdir "%OUTPUT_DIR%"
 )
 
+:: Làm trống thư mục output
+echo Cleaning output directory...
+del /q "%OUTPUT_DIR%\*" >nul 2>&1
+for /d %%i in ("%OUTPUT_DIR%\*") do rmdir /s /q "%%i" >nul 2>&1
+
+:: Copy và đổi tên file
 for /d %%d in (bin\Release\net*) do (
     if exist "%%d\win-x64\publish\%PROJECT_NAME%.exe" (
         echo Copying and renaming output file...

@@ -1,6 +1,6 @@
 ﻿using Microsoft.Win32;
 using System.Diagnostics;
-using IWshRuntimeLibrary; // Thư viện này cài vào bằng cách chuột phải vào Dependencies và chọn Add Project Reference, sau đó > COM sau đó search "Windows Script Host Object Model", lúc này tick vào tuỳ chọn "IWshRuntimeLibrary" để cài thư viện
+using Helper;
 
 public static class AppInstaller
 {
@@ -93,14 +93,14 @@ public static class AppInstaller
         {
             try
             {
-                var shell = new WshShell();
-                var shortcut = (IWshShortcut)shell.CreateShortcut(shortcutPath);
-                shortcut.TargetPath = Application.ExecutablePath;
-                shortcut.WorkingDirectory = Path.GetDirectoryName(Application.ExecutablePath);
-                shortcut.WindowStyle = 1;
-                shortcut.Description = "Ứng dụng điều khiển chuột bằng bàn phím LazyControl";
-                shortcut.IconLocation = Application.ExecutablePath;
-                shortcut.Save();
+                string exePath = Application.ExecutablePath;
+                ShellShortcut.CreateShortcut(
+                    shortcutPath,
+                    exePath,
+                    Path.GetDirectoryName(exePath),
+                    "Ứng dụng điều khiển chuột bằng bàn phím LazyControl",
+                    exePath
+                );
             }
             catch (Exception ex)
             {
