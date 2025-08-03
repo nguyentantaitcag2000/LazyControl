@@ -300,10 +300,10 @@ namespace LazyControl
             if (key == Keys.Escape)
             {
                 isEscPressed = true;
-                return false; // Cho phép ESC hoạt động bình thường
+                return false; // Cho phép ESC hoạt động bình thường NHƯNG vẫn track
             }
 
-            // Xử lý ESC + F1/F2 cho chuyển monitor
+            // Xử lý ESC + F1/F2 cho chuyển monitor - QUAN TRỌNG: Di chuyển lên trước
             if (isEscPressed && (key == Keys.F1 || key == Keys.F2))
             {
                 var currentSettings = SettingsManager.LoadSettings();
@@ -315,7 +315,7 @@ namespace LazyControl
                 {
                     monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF2);
                 }
-                return true;
+                return true; // Chặn phím F1/F2 khi có ESC
             }
 
             // Xử lý ESC + F7/F8 cho điều khiển âm lượng
@@ -329,10 +329,15 @@ namespace LazyControl
                 {
                     Win32.VolumeUp();
                 }
-                return true;
+                return true; // Chặn phím F7/F8 khi có ESC
             }
 
-            if (!mouseControlEnabled) return false;
+            // Kiểm tra mouseControlEnabled TRƯỚC khi xử lý các phím di chuyển
+            if (!mouseControlEnabled)
+            {
+                // Nếu mouse control tắt, chỉ cho phép các phím hệ thống hoạt động
+                return false;
+            }
 
             // Cho phép các tổ hợp phím Ctrl khác hoạt động bình thường
             if (isCtrlPressed)
@@ -444,10 +449,19 @@ namespace LazyControl
                 }
             }
 
-            // Reset trạng thái ESC khi thả phím
+            // Reset trạng thái ESC khi thả phím - QUAN TRỌNG
             if (key == Keys.Escape)
             {
                 isEscPressed = false;
+                return false; // Vẫn cho phép ESC hoạt động bình thường
+            }
+
+            // Xử lý F1, F2, F7, F8 khi thả - cần chặn nếu đã xử lý với ESC
+            if ((key == Keys.F1 || key == Keys.F2 || key == Keys.F7 || key == Keys.F8) && !isEscPressed)
+            {
+                // Nếu không còn giữ ESC thì có thể đã xử lý combination, return true để chặn
+                // Tuy nhiên cần cẩn thận vì có thể user chỉ nhấn F1/F2 đơn lẻ
+                // Để an toàn, chỉ return false để cho phép hệ thống xử lý
                 return false;
             }
 
