@@ -4,10 +4,22 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms ;
+using System.Windows.Forms;
 
 namespace LazyControl
 {
+    public class WindowInfo
+    {
+        public IntPtr Handle { get; set; }
+        public string Title { get; set; }
+        public string ClassName { get; set; }
+        public int Area { get; set; }
+        public bool IsMaximized { get; set; }
+        public bool IsMinimized { get; set; }
+        public Win32WindowManager.RECT Bounds { get; set; }
+        public int MonitorIndex { get; set; }
+    }
+
     public class MonitorSwitcher
     {
         private readonly List<FocusBorderForm> focusBorders;
@@ -33,7 +45,7 @@ namespace LazyControl
         }
 
         /// <summary>
-        /// Kích hoạt cửa sổ trên monitor được chỉ định
+        /// Kích hoạt cửa sổ tốt nhất trên monitor được chỉ định
         /// </summary>
         /// <param name="monitorIndex">Chỉ số monitor (1-based)</param>
         public void ActivateWindowOnMonitor(int monitorIndex)
@@ -41,31 +53,160 @@ namespace LazyControl
             if (monitorIndex > Screen.AllScreens.Length)
                 return;
 
-            var exceptions = new[] { "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "WorkerW" };
-            var windows = GetAllWindows();
+            var bestWindow = FindBestWindowOnMonitor(monitorIndex);
 
-            foreach (var window in windows)
+            if (bestWindow != null)
             {
-                var className = GetWindowClassName(window);
-
-                // Bỏ qua các cửa sổ hệ thống
-                if (exceptions.Contains(className))
-                    continue;
-
-                var windowMonitor = GetMonitorFromWindow(window);
-
-                if (windowMonitor == monitorIndex)
+                // Nếu cửa sổ bị minimize, restore nó trước
+                if (bestWindow.IsMinimized)
                 {
-                    if (!IsWindowActive(window))
-                    {
-                        Win32WindowManager.SetForegroundWindow(window);
-                        Task.Delay(100).Wait(); // Đợi cửa sổ activate hoàn toàn
-                    }
-
-                    DrawFocusBorder(window);
-                    break;
+                    Win32WindowManager.ShowWindow(bestWindow.Handle, 9); // SW_RESTORE
+                    Task.Delay(200).Wait(); // Đợi restore hoàn tất
                 }
+
+                // Focus cửa sổ
+                if (!IsWindowActive(bestWindow.Handle))
+                {
+                    Win32WindowManager.SetForegroundWindow(bestWindow.Handle);
+                    Task.Delay(100).Wait(); // Đợi cửa sổ activate hoàn toàn
+                }
+
+                DrawFocusBorder(bestWindow.Handle);
             }
+            else
+            {
+                // Nếu không tìm thấy cửa sổ nào, hiển thị thông báo trên monitor đó
+                ShowNoWindowFoundIndicator(monitorIndex);
+            }
+        }
+
+        /// <summary>
+        /// Tìm cửa sổ tốt nhất trên monitor chỉ định
+        /// </summary>
+        private WindowInfo FindBestWindowOnMonitor(int targetMonitorIndex)
+        {
+            var windows = GetAllValidWindows()
+                .Where(w => w.MonitorIndex == targetMonitorIndex)
+                .ToList();
+
+            if (!windows.Any())
+                return null;
+
+            // Ưu tiên 1: Cửa sổ đang được maximize
+            var maximizedWindows = windows.Where(w => w.IsMaximized && !w.IsMinimized).ToList();
+            if (maximizedWindows.Any())
+            {
+                return maximizedWindows.OrderByDescending(w => w.Area).First();
+            }
+
+            // Ưu tiên 2: Cửa sổ có diện tích lớn nhất (không bị minimize)
+            var visibleWindows = windows.Where(w => !w.IsMinimized).ToList();
+            if (visibleWindows.Any())
+            {
+                // Tìm cửa sổ có diện tích lớn nhất, nhưng phải có kích thước hợp lý
+                var suitableWindows = visibleWindows.Where(w => w.Area > 50000).ToList(); // Ít nhất 200x250 pixels
+
+                if (suitableWindows.Any())
+                {
+                    return suitableWindows.OrderByDescending(w => w.Area).First();
+                }
+
+                // Nếu không có cửa sổ đủ lớn, chọn cửa sổ lớn nhất có sẵn
+                return visibleWindows.OrderByDescending(w => w.Area).First();
+            }
+
+            // Ưu tiên 3: Nếu tất cả đều minimize, chọn cái có diện tích lớn nhất để restore
+            return windows.OrderByDescending(w => w.Area).First();
+        }
+
+        /// <summary>
+        /// Lấy danh sách tất cả cửa sổ hợp lệ với thông tin chi tiết
+        /// </summary>
+        private List<WindowInfo> GetAllValidWindows()
+        {
+            var windows = new List<WindowInfo>();
+            var exceptions = new[] {
+                "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "WorkerW",
+                "Progman", "Button", "Static", "DV2ControlHost",
+                "#32770", "CabinetWClass", "ExploreWClass" // Thêm một số class cần bỏ qua
+            };
+
+            Win32WindowManager.EnumWindows((hwnd, lParam) =>
+            {
+                try
+                {
+                    if (!Win32WindowManager.IsWindowVisible(hwnd))
+                        return true;
+
+                    var title = GetWindowTitle(hwnd);
+                    var className = GetWindowClassName(hwnd);
+
+                    // Bỏ qua cửa sổ không có title hoặc có class name trong danh sách ngoại lệ
+                    if (string.IsNullOrWhiteSpace(title) || exceptions.Contains(className))
+                        return true;
+
+                    // Bỏ qua các cửa sổ có title quá ngắn (có thể là dialog hoặc popup)
+                    if (title.Length < 3)
+                        return true;
+
+                    if (!Win32WindowManager.GetWindowRect(hwnd, out var rect))
+                        return true;
+
+                    var width = rect.Right - rect.Left;
+                    var height = rect.Bottom - rect.Top;
+                    var area = width * height;
+
+                    // Bỏ qua cửa sổ quá nhỏ (có thể là tooltip, notification, etc.)
+                    if (width < 100 || height < 50)
+                        return true;
+
+                    var windowInfo = new WindowInfo
+                    {
+                        Handle = hwnd,
+                        Title = title,
+                        ClassName = className,
+                        Area = area,
+                        Bounds = rect,
+                        IsMaximized = Win32WindowManager.IsZoomed(hwnd),
+                        IsMinimized = Win32WindowManager.IsIconic(hwnd),
+                        MonitorIndex = GetMonitorFromWindow(hwnd)
+                    };
+
+                    windows.Add(windowInfo);
+                }
+                catch
+                {
+                    // Ignore any errors and continue enumeration
+                }
+
+                return true;
+            }, IntPtr.Zero);
+
+            return windows;
+        }
+
+        /// <summary>
+        /// Hiển thị indicator khi không tìm thấy cửa sổ nào
+        /// </summary>
+        private void ShowNoWindowFoundIndicator(int monitorIndex)
+        {
+            if (monitorIndex > Screen.AllScreens.Length)
+                return;
+
+            var screen = Screen.AllScreens[monitorIndex - 1];
+            var centerX = screen.Bounds.X + screen.Bounds.Width / 2;
+            var centerY = screen.Bounds.Y + screen.Bounds.Height / 2;
+
+            // Hiển thị một hình chữ nhật nhỏ ở giữa màn hình
+            focusBorders[0].ShowBorder(centerX - 100, centerY - 2, 200, 4);
+            focusBorders[1].ShowBorder(centerX - 100, centerY + 2, 200, 4);
+            focusBorders[2].ShowBorder(centerX - 102, centerY - 50, 4, 100);
+            focusBorders[3].ShowBorder(centerX + 98, centerY - 50, 4, 100);
+
+            // Tự động ẩn sau 1 giây
+            hideBorderTimer.Stop();
+            hideBorderTimer.Interval = 1000;
+            hideBorderTimer.Start();
         }
 
         /// <summary>
@@ -119,6 +260,7 @@ namespace LazyControl
 
             // Bắt đầu timer để ẩn viền sau 3 giây
             hideBorderTimer.Stop();
+            hideBorderTimer.Interval = 3000;
             hideBorderTimer.Start();
         }
 
@@ -131,26 +273,6 @@ namespace LazyControl
             {
                 border.Hide();
             }
-        }
-
-        /// <summary>
-        /// Lấy danh sách tất cả cửa sổ
-        /// </summary>
-        private List<IntPtr> GetAllWindows()
-        {
-            var windows = new List<IntPtr>();
-
-            Win32WindowManager.EnumWindows((hwnd, lParam) =>
-            {
-                if (Win32WindowManager.IsWindowVisible(hwnd) &&
-                    !string.IsNullOrEmpty(GetWindowTitle(hwnd)))
-                {
-                    windows.Add(hwnd);
-                }
-                return true;
-            }, IntPtr.Zero);
-
-            return windows;
         }
 
         /// <summary>
@@ -303,6 +425,16 @@ namespace LazyControl
         [DllImport("user32.dll")]
         public static extern IntPtr MonitorFromPoint(Point pt, uint dwFlags);
 
+        // THÊM CÁC API MỚI ĐỂ KIỂM TRA TRẠNG THÁI CỬA SỔ
+        [DllImport("user32.dll")]
+        public static extern bool IsZoomed(IntPtr hWnd); // Kiểm tra maximized
+
+        [DllImport("user32.dll")]
+        public static extern bool IsIconic(IntPtr hWnd); // Kiểm tra minimized
+
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); // Show/hide/restore window
+
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
         {
@@ -312,5 +444,4 @@ namespace LazyControl
             public int Bottom;
         }
     }
-
 }
