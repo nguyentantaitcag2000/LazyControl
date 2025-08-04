@@ -1,7 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <Title>LazyControl</Title>
+	  <Description>Shortcut-driven mouse and keyboard controller for power users. Provides cursor movement, scrolling, clicking, volume control, and window focus via customizable hotkeys.</Description>
+	  <Company>LazyCodet</Company>
+    <Product>LazyControl</Product>
+	  <Authors>Nguyen Tan Tai</Authors>
+	  <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
