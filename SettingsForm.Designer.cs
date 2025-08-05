@@ -33,6 +33,7 @@
             btn_save = new Button();
             cbb_esc_f1 = new ComboBox();
             cbb_esc_f2 = new ComboBox();
+            btn_uninstall_app = new Button();
             SuspendLayout();
             // 
             // label2
@@ -79,11 +80,22 @@
             cbb_esc_f2.Size = new Size(121, 23);
             cbb_esc_f2.TabIndex = 10;
             // 
+            // btn_uninstall_app
+            // 
+            btn_uninstall_app.Location = new Point(666, 415);
+            btn_uninstall_app.Name = "btn_uninstall_app";
+            btn_uninstall_app.Size = new Size(110, 23);
+            btn_uninstall_app.TabIndex = 11;
+            btn_uninstall_app.Text = "Uninstall App";
+            btn_uninstall_app.UseVisualStyleBackColor = true;
+            btn_uninstall_app.Click += btn_uninstall_app_Click;
+            // 
             // SettingsForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(btn_uninstall_app);
             Controls.Add(cbb_esc_f2);
             Controls.Add(cbb_esc_f1);
             Controls.Add(btn_save);
@@ -103,5 +115,6 @@
         private Button btn_save;
         private ComboBox cbb_esc_f1;
         private ComboBox cbb_esc_f2;
+        private Button btn_uninstall_app;
     }
 }

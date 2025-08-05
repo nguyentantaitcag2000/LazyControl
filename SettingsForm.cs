@@ -78,5 +78,10 @@ namespace LazyControl
             cbb_esc_f2.ValueMember = "Value";
             cbb_esc_f2.DropDownStyle = ComboBoxStyle.DropDownList;
         }
+
+        private void btn_uninstall_app_Click(object sender, EventArgs e)
+        {
+            AppInstaller.Uninstall();
+        }
     }
 }

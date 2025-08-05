@@ -108,4 +108,140 @@ public static class AppInstaller
             }
         }
     }
+
+    /// <summary>
+    /// Uninstall the application - removes startup registry, Start Menu shortcut, and application folder
+    /// </summary>
+    public static void Uninstall()
+    {
+        DialogResult result = MessageBox.Show(
+            "Are you sure you want to uninstall LazyControl?\n\nThis will remove:\n" +
+            "• Start Menu shortcut\n" +
+            "• Windows startup registration\n" +
+            "• All application files in AppData\n\n" +
+            "The application will close after uninstallation.",
+            "Confirm Uninstall",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question
+        );
+
+        if (result == DialogResult.Yes)
+        {
+            try
+            {
+                // 1. Xóa registry startup
+                RegisterInStartup(false);
+
+                // 2. Xóa shortcut Start Menu
+                RemoveStartMenuShortcut();
+
+                // 3. Lấy đường dẫn thư mục AppData
+                string appDataPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    AppName
+                );
+
+                // 4. Hiển thị thông báo thành công trước khi xóa file
+                MessageBox.Show(
+                    "Uninstallation completed successfully!\n\nThe application will close now.",
+                    "Success",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+
+                // 5. Tạo batch file để xóa thư mục sau khi ứng dụng đóng
+                CreateUninstallBatch(appDataPath);
+
+                // 6. Thoát ứng dụng
+                Environment.Exit(0);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "An error occurred during uninstallation:\n" + ex.Message +
+                    "\n\nPlease try manually deleting the folder:\n" +
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppName),
+                    "Uninstallation Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Remove shortcut from Start Menu
+    /// </summary>
+    private static void RemoveStartMenuShortcut()
+    {
+        try
+        {
+            string shortcutPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),
+                "Programs",
+                $"{AppName}.lnk"
+            );
+
+            if (System.IO.File.Exists(shortcutPath))
+            {
+                System.IO.File.Delete(shortcutPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't stop the uninstallation process
+            Debug.WriteLine($"Could not remove Start Menu shortcut: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Create batch file to delete application folder after exe has closed
+    /// Since we can't delete a running file, use batch file to delete later
+    /// </summary>
+    private static void CreateUninstallBatch(string appDataPath)
+    {
+        try
+        {
+            string batchPath = Path.Combine(Path.GetTempPath(), "uninstall_lazycontrol.bat");
+
+            string batchContent = $@"@echo off
+:: Wait 2 seconds for the application to close completely
+timeout /t 2 /nobreak >nul
+
+:: Delete application folder
+if exist ""{appDataPath}"" (
+    rmdir /s /q ""{appDataPath}""
+)
+
+:: Delete the batch file itself
+del ""%~f0""
+";
+
+            System.IO.File.WriteAllText(batchPath, batchContent);
+
+            // Run batch file hidden
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = batchPath,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Could not create uninstall batch file: {ex.Message}");
+            // Fallback: try to delete folder directly (may not succeed)
+            try
+            {
+                if (Directory.Exists(appDataPath))
+                {
+                    Directory.Delete(appDataPath, true);
+                }
+            }
+            catch
+            {
+                // Ignore - file is being used
+            }
+        }
+    }
 }
