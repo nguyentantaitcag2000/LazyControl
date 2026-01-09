@@ -34,11 +34,15 @@ namespace LazyControl
         // Thêm timer để kiểm tra và tái tạo hook nếu cần
         private System.Windows.Forms.Timer hookHealthCheckTimer;
 
-        // Thêm biến để track trạng thái Ctrl+J và Shift
+        // Thêm biến để track trạng thái các phím modifier và toggle key
         private bool isCtrlPressed = false;
-        private bool isShiftPressed = false; // THÊM MỚI
-        private bool isJPressed = false;
-        private bool ctrlJProcessed = false; // Để tránh xử lý nhiều lần
+        private bool isShiftPressed = false;
+        private bool isAltPressed = false;
+        private Dictionary<Keys, bool> toggleKeyStates = new Dictionary<Keys, bool>(); // Track trạng thái các phím trong hotkey
+        private bool toggleProcessed = false; // Để tránh xử lý nhiều lần
+
+        // Lưu settings hiện tại
+        private AppSettings currentSettings;
 
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(Keys vKey);
@@ -46,6 +50,9 @@ namespace LazyControl
         public Form1()
         {
             InitializeComponent();
+
+            // Load settings ngay từ đầu
+            currentSettings = SettingsManager.LoadSettings();
 
             highlightForm = new CursorHighlightForm();
             var assembly = Assembly.GetExecutingAssembly();
@@ -62,7 +69,6 @@ namespace LazyControl
             systemKeyCheckTimer.Start();
 
             // Timer để kiểm tra sức khỏe của hook
-            // Vì có trường hợp khi mà ứng dụng đang chạy bình thường nhưng khi người dùng mở lên chương trình gõ tiếng việt thì lúc này phần mềm gõ tiếng lại đăng kí các hook của nó cao hơn, nên chương trình của mình bị nó chiếm 1 số keys nên ta cần kiểm tra để đăng kí lại 
             hookHealthCheckTimer = new System.Windows.Forms.Timer();
             hookHealthCheckTimer.Interval = 1000; // 1 giây kiểm tra một lần
             hookHealthCheckTimer.Tick += CheckHookHealth;
@@ -141,14 +147,11 @@ namespace LazyControl
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
-            // BỎ đăng ký hotkey Ctrl+J vì sẽ xử lý trực tiếp trong keyboard hook
-            // Win32.RegisterHotKey(this.Handle, 1, (int)KeyModifiers.Control, (int)Keys.J);
+            // Không cần đăng ký hotkey vì xử lý trực tiếp trong keyboard hook
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
         {
-            // BỎ unregister hotkey Ctrl+J
-            // Win32.UnregisterHotKey(this.Handle, 1);
             base.OnHandleDestroyed(e);
         }
 
@@ -167,7 +170,6 @@ namespace LazyControl
             hookHealthCheckTimer?.Dispose();
 
             keyboardHook?.Stop();
-            Win32.UnregisterHotKey(this.Handle, 1);
             movementTokenSource?.Cancel();
 
             if (isLeftMouseDown)
@@ -183,47 +185,34 @@ namespace LazyControl
 
         protected override void WndProc(ref Message m)
         {
-            if (m.Msg == 0x0312) // WM_HOTKEY
-            {
-                int hotkeyId = m.WParam.ToInt32();
-
-                switch (hotkeyId)
-                {
-                    case 1: // Ctrl + J - Toggle mouse control
-                        mouseControlEnabled = !mouseControlEnabled;
-                        this.Text = $"Mouse Control: {(mouseControlEnabled ? "ON" : "OFF")}";
-
-                        if (mouseControlEnabled)
-                        {
-                            highlightForm.ShowHighlight();
-                            // Reset trạng thái pause nếu có
-                            isPausedBySystemKey = false;
-                            wasMouseControlEnabledBeforeSystemKey = false;
-
-                            // Force refresh hook để đảm bảo nó hoạt động
-                            keyboardHook?.ForceRefresh();
-                        }
-                        else
-                        {
-                            highlightForm.HideHighlight();
-
-                            lock (lockObject)
-                            {
-                                pressedKeys.Clear();
-                                movementTokenSource?.Cancel();
-
-                                if (isLeftMouseDown)
-                                {
-                                    Win32.LeftMouseUp();
-                                    isLeftMouseDown = false;
-                                }
-                            }
-                        }
-                        break;
-                }
-            }
-
             base.WndProc(ref m);
+        }
+
+        // Hàm helper để extract các modifier keys từ Keys combination
+        private (bool hasCtrl, bool hasShift, bool hasAlt, Keys baseKey) ParseKeyCombination(Keys combination)
+        {
+            bool hasCtrl = (combination & Keys.Control) == Keys.Control;
+            bool hasShift = (combination & Keys.Shift) == Keys.Shift;
+            bool hasAlt = (combination & Keys.Alt) == Keys.Alt;
+            Keys baseKey = combination & ~Keys.Modifiers; // Loại bỏ tất cả modifier để lấy phím gốc
+
+            return (hasCtrl, hasShift, hasAlt, baseKey);
+        }
+
+        // Hàm kiểm tra xem hotkey toggle có đang được nhấn không
+        private bool IsToggleHotkeyPressed()
+        {
+            var (hasCtrl, hasShift, hasAlt, baseKey) = ParseKeyCombination(currentSettings.ToggleMouseMode);
+
+            // Kiểm tra các modifier keys có khớp không
+            bool modifiersMatch = (hasCtrl == isCtrlPressed) &&
+                                  (hasShift == isShiftPressed) &&
+                                  (hasAlt == isAltPressed);
+
+            // Kiểm tra base key có được nhấn không
+            bool baseKeyPressed = toggleKeyStates.ContainsKey(baseKey) && toggleKeyStates[baseKey];
+
+            return modifiersMatch && baseKeyPressed;
         }
 
         // THÊM HÀM HELPER ĐỂ KIỂM TRA CÓ PHẢI SYSTEM HOTKEY KHÔNG
@@ -256,7 +245,7 @@ namespace LazyControl
             }
 
             // Alt combinations
-            if ((Control.ModifierKeys & Keys.Alt) == Keys.Alt)
+            if (isAltPressed)
             {
                 return true; // Cho phép tất cả Alt combinations
             }
@@ -266,30 +255,38 @@ namespace LazyControl
 
         private bool OnKeyDown(Keys key)
         {
-            // Track trạng thái Ctrl
+            // Track trạng thái các modifier keys
             if (key == Keys.LControlKey || key == Keys.RControlKey)
             {
                 isCtrlPressed = true;
-                ctrlJProcessed = false; // Reset flag khi nhấn Ctrl mới
+                toggleProcessed = false; // Reset flag khi nhấn Ctrl mới
                 return false; // Cho phép Ctrl hoạt động bình thường
             }
 
-            // THÊM: Track trạng thái Shift
             if (key == Keys.LShiftKey || key == Keys.RShiftKey)
             {
                 isShiftPressed = true;
                 return false; // Cho phép Shift hoạt động bình thường
             }
 
-            // Track trạng thái J
-            if (key == Keys.J)
+            if (key == Keys.LMenu || key == Keys.RMenu) // Alt keys
             {
-                isJPressed = true;
+                isAltPressed = true;
+                return false; // Cho phép Alt hoạt động bình thường
+            }
 
-                // XỬ LÝ CTRL+J TRỰC TIẾP TẠI ĐÂY - chỉ khi KHÔNG có Shift
-                if (isCtrlPressed && !isShiftPressed && !ctrlJProcessed)
+            // Lấy base key từ toggle hotkey
+            var (_, _, _, toggleBaseKey) = ParseKeyCombination(currentSettings.ToggleMouseMode);
+
+            // Track trạng thái của base key trong toggle hotkey
+            if (key == toggleBaseKey)
+            {
+                toggleKeyStates[key] = true;
+
+                // Kiểm tra xem có phải đang nhấn hotkey toggle không
+                if (IsToggleHotkeyPressed() && !toggleProcessed)
                 {
-                    ctrlJProcessed = true; // Đánh dấu đã xử lý để tránh lặp
+                    toggleProcessed = true; // Đánh dấu đã xử lý để tránh lặp
 
                     // Toggle mouse control
                     mouseControlEnabled = !mouseControlEnabled;
@@ -322,28 +319,22 @@ namespace LazyControl
                         }
                     }
 
-                    return true; // Chặn cả Ctrl và J khi xử lý Ctrl+J
+                    return true; // Chặn tổ hợp phím toggle
                 }
 
-                // Nếu có Ctrl+Shift+J hoặc tổ hợp khác, cho phép hệ thống xử lý
-                if (isCtrlPressed && isShiftPressed)
-                {
-                    return false; // Không chặn, để hệ thống xử lý
-                }
-
-                // Nếu không có Ctrl hoặc đã xử lý rồi, xử lý J như mouse click (chỉ khi mouse control bật)
-                if (!isCtrlPressed && mouseControlEnabled && !isLeftMouseDown)
-                {
-                    Win32.LeftMouseDown();
-                    isLeftMouseDown = true;
-                    return true;
-                }
-
-                // Nếu có Ctrl nhưng đã xử lý rồi, chặn J để tránh mouse click
-                if (isCtrlPressed && !isShiftPressed)
+                // Nếu đã xử lý toggle, chặn key để tránh side effect
+                if (toggleProcessed)
                 {
                     return true;
                 }
+            }
+
+            // Nếu không phải toggle hotkey, xử lý như mouse click (nếu là J và mouse control bật)
+            if (key == Keys.J && !IsToggleHotkeyPressed() && mouseControlEnabled && !isLeftMouseDown)
+            {
+                Win32.LeftMouseDown();
+                isLeftMouseDown = true;
+                return true;
             }
 
             // Xử lý phím ESC để theo dõi trạng thái
@@ -353,10 +344,9 @@ namespace LazyControl
                 return false; // Cho phép ESC hoạt động bình thường NHƯNG vẫn track
             }
 
-            // Xử lý ESC + F1/F2 cho chuyển monitor - QUAN TRỌNG: Di chuyển lên trước
+            // Xử lý ESC + F1/F2 cho chuyển monitor
             if (isEscPressed && (key == Keys.F1 || key == Keys.F2))
             {
-                var currentSettings = SettingsManager.LoadSettings();
                 if (key == Keys.F1)
                 {
                     monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF1);
@@ -379,7 +369,7 @@ namespace LazyControl
                 {
                     Win32.VolumeUp();
                 }
-                return true; // Chặn phím F7/F8 khi có ESC
+                return true; // Chặn phím F7/F8 khi có Ctrl
             }
 
             // Kiểm tra mouseControlEnabled TRƯỚC khi xử lý các phím di chuyển
@@ -396,8 +386,7 @@ namespace LazyControl
             }
 
             // Nếu giữ Alt + D, bỏ qua để hệ điều hành xử lý
-            var isPressingAltKey = (Control.ModifierKeys & Keys.Alt) == Keys.Alt;
-            if (isPressingAltKey && key == Keys.D)
+            if (isAltPressed && key == Keys.D)
             {
                 return false;
             }
@@ -431,7 +420,7 @@ namespace LazyControl
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
                 // Nếu có bất kỳ modifier key nào, cho phép hệ thống xử lý
-                if (isCtrlPressed || isShiftPressed || (Control.ModifierKeys & Keys.Alt) == Keys.Alt)
+                if (isCtrlPressed || isShiftPressed || isAltPressed)
                 {
                     return false; // Cho phép tổ hợp phím với modifier hoạt động bình thường
                 }
@@ -454,7 +443,7 @@ namespace LazyControl
             {
                 case Keys.F:
                     // Chỉ chặn F khi không có modifier keys
-                    if (!isCtrlPressed && !isShiftPressed && (Control.ModifierKeys & Keys.Alt) != Keys.Alt)
+                    if (!isCtrlPressed && !isShiftPressed && !isAltPressed)
                     {
                         return true;
                     }
@@ -462,7 +451,7 @@ namespace LazyControl
 
                 case Keys.K:
                     // Chỉ chặn K khi không có modifier keys
-                    if (!isCtrlPressed && !isShiftPressed && (Control.ModifierKeys & Keys.Alt) != Keys.Alt)
+                    if (!isCtrlPressed && !isShiftPressed && !isAltPressed)
                     {
                         Win32.RightClick();
                         return true;
@@ -471,7 +460,7 @@ namespace LazyControl
 
                 case Keys.N:
                     // Chỉ chặn N khi không có modifier keys
-                    if (!isCtrlPressed && !isShiftPressed && (Control.ModifierKeys & Keys.Alt) != Keys.Alt)
+                    if (!isCtrlPressed && !isShiftPressed && !isAltPressed)
                     {
                         Win32.MiddleClick();
                         return true;
@@ -484,60 +473,61 @@ namespace LazyControl
 
         private bool OnKeyUp(Keys key)
         {
-            // Track trạng thái Ctrl
+            // Track trạng thái các modifier keys
             if (key == Keys.LControlKey || key == Keys.RControlKey)
             {
                 isCtrlPressed = false;
-                ctrlJProcessed = false; // Reset khi thả Ctrl
+                toggleProcessed = false; // Reset khi thả modifier
                 return false;
             }
 
-            // THÊM: Track trạng thái Shift
             if (key == Keys.LShiftKey || key == Keys.RShiftKey)
             {
                 isShiftPressed = false;
+                toggleProcessed = false;
                 return false;
             }
 
-            // Track trạng thái J
-            if (key == Keys.J)
+            if (key == Keys.LMenu || key == Keys.RMenu) // Alt keys
             {
-                isJPressed = false;
+                isAltPressed = false;
+                toggleProcessed = false;
+                return false;
+            }
 
-                // Chỉ xử lý mouse up khi KHÔNG có Ctrl và đang mouse down
-                if (!isCtrlPressed && mouseControlEnabled && isLeftMouseDown)
-                {
-                    Win32.LeftMouseUp();
-                    isLeftMouseDown = false;
-                    return true;
-                }
+            // Lấy base key từ toggle hotkey
+            var (_, _, _, toggleBaseKey) = ParseKeyCombination(currentSettings.ToggleMouseMode);
 
-                // Nếu có Ctrl+Shift, không chặn
-                if (isCtrlPressed && isShiftPressed)
-                {
-                    return false;
-                }
+            // Track trạng thái của base key
+            if (key == toggleBaseKey)
+            {
+                toggleKeyStates[key] = false;
 
-                // Nếu có Ctrl (không có Shift), vẫn chặn để tránh side effect
-                if (isCtrlPressed && !isShiftPressed)
+                // Nếu đã xử lý toggle, chặn để tránh side effect
+                if (toggleProcessed)
                 {
                     return true;
                 }
             }
 
-            // Reset trạng thái ESC khi thả phím - QUAN TRỌNG
+            // Nếu là J và không phải toggle hotkey, xử lý mouse up
+            if (key == Keys.J && !IsToggleHotkeyPressed() && mouseControlEnabled && isLeftMouseDown)
+            {
+                Win32.LeftMouseUp();
+                isLeftMouseDown = false;
+                return true;
+            }
+            
+            // Reset trạng thái ESC khi thả phím
             if (key == Keys.Escape)
             {
                 isEscPressed = false;
                 return false; // Vẫn cho phép ESC hoạt động bình thường
             }
 
-            // Xử lý F1, F2, F7, F8 khi thả - cần chặn nếu đã xử lý với ESC
+            // Xử lý F1, F2, F7, F8 khi thả
             if ((key == Keys.F1 || key == Keys.F2 || key == Keys.F7 || key == Keys.F8) && !isEscPressed)
             {
-                // Nếu không còn giữ ESC thì có thể đã xử lý combination, return true để chặn
-                // Tuy nhiên cần cẩn thận vì có thể user chỉ nhấn F1/F2 đơn lẻ
-                // Để an toàn, chỉ return false để cho phép hệ thống xử lý
                 return false;
             }
 
@@ -546,7 +536,7 @@ namespace LazyControl
             if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
             {
                 // Nếu có modifier keys, không xử lý như phím di chuyển
-                if (isCtrlPressed || isShiftPressed || (Control.ModifierKeys & Keys.Alt) == Keys.Alt)
+                if (isCtrlPressed || isShiftPressed || isAltPressed)
                 {
                     return false;
                 }
@@ -566,7 +556,7 @@ namespace LazyControl
             // Chỉ chặn các phím chức năng khi không có modifier keys
             if (key == Keys.F || key == Keys.K || key == Keys.N)
             {
-                if (!isCtrlPressed && !isShiftPressed && (Control.ModifierKeys & Keys.Alt) != Keys.Alt)
+                if (!isCtrlPressed && !isShiftPressed && !isAltPressed)
                 {
                     return true;
                 }
@@ -679,7 +669,6 @@ namespace LazyControl
 
         private void CheckSystemKeysReleased(object sender, EventArgs e)
         {
-            // Bỏ kiểm tra Ctrl vì giờ đã track trực tiếp trong keyboard hook
             bool winDown = (GetAsyncKeyState(Keys.LWin) & 0x8000) != 0 ||
                            (GetAsyncKeyState(Keys.RWin) & 0x8000) != 0;
 
@@ -696,6 +685,14 @@ namespace LazyControl
                     highlightForm.ShowHighlight();
                 }
             }
+        }
+
+        // Thêm method public để reload settings khi user thay đổi trong SettingsForm
+        public void ReloadSettings()
+        {
+            currentSettings = SettingsManager.LoadSettings();
+            toggleProcessed = false;
+            toggleKeyStates.Clear();
         }
     }
 }

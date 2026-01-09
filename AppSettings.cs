@@ -10,5 +10,6 @@ namespace LazyControl
     {
         public int EscF1 { get; set; }
         public int EscF2 { get; set; }
+        public Keys ToggleMouseMode { get; set; }
     }
 }

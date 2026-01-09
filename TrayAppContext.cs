@@ -12,12 +12,12 @@ namespace LazyControl
         private NotifyIcon trayIcon;
         private SettingsForm settingsForm;
         private Form1 form1 { get; set; }
-
+        
         public TrayAppContext()
         {
             // Tạo form nhưng chưa hiển thị
             form1 = new Form1();
-            settingsForm = new SettingsForm();
+            settingsForm = new SettingsForm(form1);
             form1.FormClosing += (s, e) =>
             {
                 // Khi đóng form, ẩn đi chứ không thoát app

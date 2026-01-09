@@ -1,13 +1,5 @@
-﻿using LazyControl.Models.Settings;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Text;
+﻿using System.Diagnostics;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace LazyControl
 {
@@ -37,7 +29,8 @@ namespace LazyControl
                     var defaultSettings = new AppSettings
                     {
                         EscF1 = 1,
-                        EscF2 = 2
+                        EscF2 = 2,
+                        ToggleMouseMode = Keys.Control | Keys.J
                     };
 
                     SaveSettings(defaultSettings);
@@ -48,7 +41,8 @@ namespace LazyControl
                 return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings
                 {
                     EscF1 = 1,
-                    EscF2 = 2
+                    EscF2 = 2,
+                    ToggleMouseMode = Keys.Control | Keys.J
                 };
             }
             catch (Exception ex)
@@ -60,7 +54,8 @@ namespace LazyControl
                 return new AppSettings
                 {
                     EscF1 = 1,
-                    EscF2 = 2
+                    EscF2 = 2,
+                    ToggleMouseMode = Keys.Control | Keys.J
                 };
             }
         }

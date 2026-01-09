@@ -20,7 +20,7 @@
 ### Select Text
 - Similar to mouse behavior: at a point, hold `J` then move the cursor with `A`/`W`/`D`/`S`
 ### Disable Mouse Movement Mode
-- In cases where text input is needed, disable the mouse feature to type using the set shortcut, default is `Ctrl` + `J`
+- In cases where text input is needed, disable the mouse feature to type using the set shortcut, which can be chosen flexibly between `Ctrl` + `J`, `Ctrl` + `K`, or `Ctrl` + `L`. Default is `Ctrl` + `J`
 ### Focus on the Active Window on a Screen
 - Suppose you have multiple applications open on your computer and are using two monitors—one for coding and one for browsing. While coding, you may want to switch to the other monitor to search or perform actions. Instead of reaching for the mouse to focus on the browser, you can set a shortcut to quickly focus. For example, set `ESC` + `F1` for the left monitor and `ESC` + `F2` for the right monitor. This way, switching between monitors is as simple as pressing `ESC` + `F1` or `ESC` + `F2`.
 ### Increase/Decrease Volume
