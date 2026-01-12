@@ -328,10 +328,14 @@ namespace LazyControl
                     return true;
                 }
             }
-
+            
             // Nếu không phải toggle hotkey, xử lý như mouse click (nếu là J và mouse control bật)
             if (key == Keys.J && !IsToggleHotkeyPressed() && mouseControlEnabled && !isLeftMouseDown)
             {
+                if (isCtrlPressed)
+                {
+                    return false; // Khi nhấn ctrl + J mà không phải toggle chế độ chuột, thì không cần làm gì để người ta có thể sử dụng các chức năng tổ hợp phím ở các ứng dụng khác
+                }
                 Win32.LeftMouseDown();
                 isLeftMouseDown = true;
                 return true;
@@ -510,14 +514,19 @@ namespace LazyControl
                 }
             }
 
+            
             // Nếu là J và không phải toggle hotkey, xử lý mouse up
             if (key == Keys.J && !IsToggleHotkeyPressed() && mouseControlEnabled && isLeftMouseDown)
             {
+                if (isCtrlPressed)
+                {
+                    return false; // Khi nhấn ctrl + J mà không phải toggle chế độ chuột, thì không cần làm gì để người ta có thể sử dụng các chức năng tổ hợp phím ở các ứng dụng khác
+                }
                 Win32.LeftMouseUp();
                 isLeftMouseDown = false;
                 return true;
             }
-            
+
             // Reset trạng thái ESC khi thả phím
             if (key == Keys.Escape)
             {
