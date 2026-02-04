@@ -12,6 +12,8 @@ namespace LazyControl
             "settings.json"
         );
 
+        private static AppSettings defaultSettings = new AppSettings{};
+
         public static AppSettings LoadSettings()
         {
             try
@@ -25,25 +27,12 @@ namespace LazyControl
 
                 if (!File.Exists(SettingsFile))
                 {
-                    // Tạo mặc định và lưu vào file
-                    var defaultSettings = new AppSettings
-                    {
-                        EscF1 = 1,
-                        EscF2 = 2,
-                        ToggleMouseMode = Keys.Control | Keys.J
-                    };
-
-                    SaveSettings(defaultSettings);
                     return defaultSettings;
                 }
 
                 string json = File.ReadAllText(SettingsFile);
-                return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings
-                {
-                    EscF1 = 1,
-                    EscF2 = 2,
-                    ToggleMouseMode = Keys.Control | Keys.J
-                };
+
+                return JsonSerializer.Deserialize<AppSettings>(json) ?? defaultSettings;
             }
             catch (Exception ex)
             {
