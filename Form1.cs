@@ -329,7 +329,7 @@ namespace LazyControl
                 }
             }
             
-            // Nếu không phải toggle hotkey, xử lý như mouse click (nếu là J và mouse control bật)
+            // Nếu không phải toggle hotkey, xử lý như mouse click (nếu là J và mouse control bật)o
             if (key == Keys.J && !IsToggleHotkeyPressed() && mouseControlEnabled && !isLeftMouseDown)
             {
                 if (isCtrlPressed)
@@ -349,17 +349,47 @@ namespace LazyControl
             }
 
             // Xử lý ESC + F1/F2 cho chuyển monitor
-            if (isEscPressed && (key == Keys.F1 || key == Keys.F2))
+            if (key == Keys.F1 || key == Keys.F2)
             {
-                if (key == Keys.F1)
+                if (isEscPressed)
                 {
-                    monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF1);
+                    if (key == Keys.F1)
+                    {
+                        monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF1);
+                    }
+                    else if (key == Keys.F2)
+                    {
+                        monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF2);
+                    }
+                    return true; // Chặn phím F1/F2 khi có ESC
                 }
-                else if (key == Keys.F2)
+                else if (mouseControlEnabled)
                 {
-                    monitorSwitcher.ActivateWindowOnMonitor(currentSettings.EscF2);
+                    // Trường hợp này sẽ di chuyển caret đến màn hình chỉ định
+                    // Lấy danh sách màn hình
+                    var screens = Screen.AllScreens;
+                    if (screens.Length > 1)
+                    {
+                        // Xác định màn hình hiện tại của con trỏ
+                        var cursorPos = Cursor.Position;
+                        var currentScreen = screens.FirstOrDefault(s => s.Bounds.Contains(cursorPos));
+                        // Xác định màn hình đích
+                        Screen targetScreen = null;
+                        if (key == Keys.F1)
+                            targetScreen = screens.FirstOrDefault(s => s != currentScreen && s.DeviceName != currentScreen.DeviceName);
+                        else if (key == Keys.F2)
+                            targetScreen = screens.LastOrDefault(s => s != currentScreen && s.DeviceName != currentScreen.DeviceName);
+
+                        if (targetScreen != null)
+                        {
+                            // Di chuyển con trỏ đến giữa màn hình đích
+                            var centerX = targetScreen.Bounds.Left + targetScreen.Bounds.Width / 2;
+                            var centerY = targetScreen.Bounds.Top + targetScreen.Bounds.Height / 2;
+                            Cursor.Position = new Point(centerX, centerY);
+                        }
+                    }
+                    return true;
                 }
-                return true; // Chặn phím F1/F2 khi có ESC
             }
 
             // Xử lý Ctrl + F7/F8 cho điều khiển âm lượng
