@@ -48,3 +48,4 @@ If pressing these focuses the wrong monitor, adjust it in the Settings.
 - Increment the version number in the `Configuration.cs` file: `public const string VERSION = "1.0.0.13";`
 - Run the `build-single.bat` file to create a portable application
 - This generates a `my-publish` folder containing two files: `.exe` and `.xml`. Upload these two files to the server.
+- Open .xml file and add the url inside <changelog> for users to see the changelog when they update.
