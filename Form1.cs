@@ -365,6 +365,7 @@ namespace LazyControl
                 }
                 else if (mouseControlEnabled)
                 {
+
                     // Trường hợp này sẽ di chuyển caret đến màn hình chỉ định
                     // Lấy danh sách màn hình
                     var screens = Screen.AllScreens;
@@ -376,9 +377,9 @@ namespace LazyControl
                         // Xác định màn hình đích
                         Screen targetScreen = null;
                         if (key == Keys.F1)
-                            targetScreen = screens.FirstOrDefault(s => s != currentScreen && s.DeviceName != currentScreen.DeviceName);
+                            targetScreen = screens.ElementAtOrDefault(currentSettings.EscF1 - 1);
                         else if (key == Keys.F2)
-                            targetScreen = screens.LastOrDefault(s => s != currentScreen && s.DeviceName != currentScreen.DeviceName);
+                            targetScreen = screens.ElementAtOrDefault(currentSettings.EscF2 - 1);
 
                         if (targetScreen != null)
                         {
