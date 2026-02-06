@@ -23,6 +23,8 @@ echo Found version: %VERSION%
 set PROJECT_NAME=LazyControl
 set CSPROJ=LazyControl.csproj
 set OUTPUT_DIR=my-publish
+set CHANGELOG_FILE=changelog-%VERSION%.txt
+set CHANGELOG_URL=https://storage-test.lazycodet.com/products/lazycontrol/%CHANGELOG_FILE%
 
 :: Publish
 echo Publishing application...
@@ -72,10 +74,22 @@ echo ^<?xml version="1.0" encoding="UTF-8"?^>
 echo ^<item^>
 echo   ^<version^>%VERSION%^</version^>
 echo   ^<url^>https://storage-test.lazycodet.com/products/lazycontrol/%NEW_NAME%^</url^>
-echo   ^<changelog^>^</changelog^>
+echo   ^<changelog^>%CHANGELOG_URL%^</changelog^>
 echo   ^<mandatory^>false^</mandatory^>
 echo ^</item^>
 ) > "%OUTPUT_DIR%\AutoUpdater.xml"
+
+:: ==============================
+:: Create changelog file
+:: ==============================
+echo Creating %CHANGELOG_FILE%...
+(
+echo Version %VERSION%
+echo ----------------------
+) > "%OUTPUT_DIR%\%CHANGELOG_FILE%"
+
+:: Open changelog file automatically
+start "" "%OUTPUT_DIR%\%CHANGELOG_FILE%"
 
 echo.
 echo ========================================
