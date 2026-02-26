@@ -27,7 +27,10 @@ namespace LazyControl
         {
             new ShortcutOption { Label = "Ctrl+J", Value = Keys.Control | Keys.J },
             new ShortcutOption { Label = "Ctrl+K", Value = Keys.Control | Keys.K },
-            new ShortcutOption { Label = "Ctrl+L", Value = Keys.Control | Keys.L }
+            new ShortcutOption { Label = "Ctrl+L", Value = Keys.Control | Keys.L },
+            new ShortcutOption { Label = "Ctrl+U", Value = Keys.Control | Keys.U },
+            new ShortcutOption { Label = "Ctrl+I", Value = Keys.Control | Keys.I },
+            new ShortcutOption { Label = "Ctrl+O", Value = Keys.Control | Keys.O }
         };
         public SettingsForm(Form1 mainForm)
         {
