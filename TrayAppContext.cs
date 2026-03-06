@@ -12,7 +12,7 @@ namespace LazyControl
         private NotifyIcon trayIcon;
         private SettingsForm settingsForm;
         private Form1 form1 { get; set; }
-        
+
         public TrayAppContext()
         {
             // Tạo form nhưng chưa hiển thị
@@ -46,6 +46,12 @@ namespace LazyControl
 
         private void OnSettingsClick(object sender, EventArgs e)
         {
+            // Kiểm tra nếu form đã bị dispose, tạo lại mới
+            if (settingsForm.IsDisposed)
+            {
+                settingsForm = new SettingsForm(form1);
+            }
+
             if (!settingsForm.Visible)
             {
                 settingsForm.Show();

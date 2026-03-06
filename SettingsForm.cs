@@ -32,16 +32,36 @@ namespace LazyControl
             new ShortcutOption { Label = "Ctrl+I", Value = Keys.Control | Keys.I },
             new ShortcutOption { Label = "Ctrl+O", Value = Keys.Control | Keys.O }
         };
+
+        List<MouseControlOption> mouseControlOptions = new List<MouseControlOption>
+        {
+            new MouseControlOption { Label = "A-W-D-S (Default)", Value = MouseControlMode.AWDS },
+            new MouseControlOption { Label = "S-E-F-D (10-finger)", Value = MouseControlMode.SEFD }
+        };
         public SettingsForm(Form1 mainForm)
         {
             InitializeComponent();
             this.mainForm = mainForm;
+
+            // Ngăn không cho dispose khi đóng form
+            this.FormClosing += SettingsForm_FormClosing;
+        }
+
+        private void SettingsForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            // Nếu người dùng bấm nút X, chỉ ẩn form chứ không dispose
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                this.Hide();
+            }
         }
 
         private void SettingsForm_Load(object sender, EventArgs e)
         {
             currentSettings = SettingsManager.LoadSettings();
             setUpScreenOptions();
+            setUpMouseControlOptions();
 
             // Set giá trị cho ESC + F1/F2
             cbb_esc_f1.SelectedIndex = FindComboBoxIndex(cbb_esc_f1, currentSettings.EscF1);
@@ -49,6 +69,9 @@ namespace LazyControl
 
             // Set giá trị cho Toggle Mouse Mode hotkey
             cbb_toggle_mouse_mode.SelectedIndex = FindToggleHotkeyIndex(currentSettings.ToggleMouseMode);
+
+            // Set giá trị cho Mouse Control Mode
+            cbb_mouse_control_mode.SelectedIndex = FindMouseControlModeIndex(currentSettings.MouseControlMode);
         }
 
         private void btn_save_Click(object sender, EventArgs e)
@@ -59,6 +82,11 @@ namespace LazyControl
             if (cbb_toggle_mouse_mode.SelectedItem is ShortcutOption selected)
             {
                 currentSettings.ToggleMouseMode = selected.Value;
+            }
+
+            if (cbb_mouse_control_mode.SelectedItem is MouseControlOption selectedMode)
+            {
+                currentSettings.MouseControlMode = selectedMode.Value;
             }
 
             var resultCheck = SettingsManager.checkValidSettings(currentSettings);
@@ -115,6 +143,22 @@ namespace LazyControl
             cbb_toggle_mouse_mode.DisplayMember = "Label";
             cbb_toggle_mouse_mode.ValueMember = "Value";
             cbb_toggle_mouse_mode.DropDownStyle = ComboBoxStyle.DropDownList;
+        }
+
+        private void setUpMouseControlOptions()
+        {
+            var bindingSource4 = new BindingSource();
+            bindingSource4.DataSource = mouseControlOptions;
+
+            cbb_mouse_control_mode.DataSource = bindingSource4;
+            cbb_mouse_control_mode.DisplayMember = "Label";
+            cbb_mouse_control_mode.ValueMember = "Value";
+            cbb_mouse_control_mode.DropDownStyle = ComboBoxStyle.DropDownList;
+        }
+
+        private int FindMouseControlModeIndex(MouseControlMode modeToFind)
+        {
+            return mouseControlOptions.FindIndex(x => x.Value == modeToFind);
         }
 
         private void btn_uninstall_app_Click(object sender, EventArgs e)

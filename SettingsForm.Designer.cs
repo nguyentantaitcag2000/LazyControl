@@ -36,6 +36,8 @@
             btn_uninstall_app = new Button();
             cbb_toggle_mouse_mode = new ComboBox();
             label3 = new Label();
+            cbb_mouse_control_mode = new ComboBox();
+            label4 = new Label();
             SuspendLayout();
             // 
             // label2
@@ -109,11 +111,30 @@
             label3.TabIndex = 12;
             label3.Text = "On/Off Mouse Mode";
             // 
+            // cbb_mouse_control_mode
+            // 
+            cbb_mouse_control_mode.FormattingEnabled = true;
+            cbb_mouse_control_mode.Location = new Point(294, 28);
+            cbb_mouse_control_mode.Name = "cbb_mouse_control_mode";
+            cbb_mouse_control_mode.Size = new Size(180, 23);
+            cbb_mouse_control_mode.TabIndex = 14;
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Location = new Point(294, 10);
+            label4.Name = "label4";
+            label4.Size = new Size(106, 15);
+            label4.TabIndex = 15;
+            label4.Text = "Mouse Control Mode";
+            // 
             // SettingsForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(label4);
+            Controls.Add(cbb_mouse_control_mode);
             Controls.Add(cbb_toggle_mouse_mode);
             Controls.Add(label3);
             Controls.Add(btn_uninstall_app);
@@ -139,5 +160,7 @@
         private Button btn_uninstall_app;
         private ComboBox cbb_toggle_mouse_mode;
         private Label label3;
+        private ComboBox cbb_mouse_control_mode;
+        private Label label4;
     }
 }

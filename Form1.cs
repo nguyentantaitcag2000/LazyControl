@@ -328,7 +328,7 @@ namespace LazyControl
                     return true;
                 }
             }
-            
+
             // Nếu không phải toggle hotkey, xử lý như mouse click (nếu là J và mouse control bật)o
             if (key == Keys.J && !IsToggleHotkeyPressed() && mouseControlEnabled && !isLeftMouseDown)
             {
@@ -452,7 +452,7 @@ namespace LazyControl
             }
 
             // Xử lý phím di chuyển - CHỈ KHI KHÔNG CÓ MODIFIER KEYS
-            if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
+            if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L || key == Keys.E || key == Keys.F)
             {
                 // Nếu có bất kỳ modifier key nào, cho phép hệ thống xử lý
                 if (isCtrlPressed || isShiftPressed || isAltPressed)
@@ -476,13 +476,6 @@ namespace LazyControl
 
             switch (key)
             {
-                case Keys.F:
-                    // Chỉ chặn F khi không có modifier keys
-                    if (!isCtrlPressed && !isShiftPressed && !isAltPressed)
-                    {
-                        return true;
-                    }
-                    return false;
 
                 case Keys.K:
                     // Chỉ chặn K khi không có modifier keys
@@ -545,7 +538,7 @@ namespace LazyControl
                 }
             }
 
-            
+
             // Nếu là J và không phải toggle hotkey, xử lý mouse up
             if (key == Keys.J && !IsToggleHotkeyPressed() && mouseControlEnabled && isLeftMouseDown)
             {
@@ -573,7 +566,7 @@ namespace LazyControl
 
             if (!mouseControlEnabled) return false;
 
-            if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L)
+            if (key == Keys.S || key == Keys.W || key == Keys.A || key == Keys.D || key == Keys.L || key == Keys.E || key == Keys.F)
             {
                 // Nếu có modifier keys, không xử lý như phím di chuyển
                 if (isCtrlPressed || isShiftPressed || isAltPressed)
@@ -594,7 +587,7 @@ namespace LazyControl
             }
 
             // Chỉ chặn các phím chức năng khi không có modifier keys
-            if (key == Keys.F || key == Keys.K || key == Keys.N)
+            if (key == Keys.K || key == Keys.N)
             {
                 if (!isCtrlPressed && !isShiftPressed && !isAltPressed)
                 {
@@ -627,40 +620,90 @@ namespace LazyControl
                     bool hasS = pressedKeys.Contains(Keys.S);
                     bool hasA = pressedKeys.Contains(Keys.A);
                     bool hasD = pressedKeys.Contains(Keys.D);
+                    bool hasE = pressedKeys.Contains(Keys.E);
+                    bool hasF = pressedKeys.Contains(Keys.F);
 
-                    // Kiểm tra scroll dọc (L+W hoặc L+S)
-                    if (hasL && hasW && !hasS && !hasA && !hasD)
+                    // Xác định chế độ điều khiển
+                    var mode = currentSettings.MouseControlMode;
+
+                    // Kiểm tra scroll dọc và ngang dựa trên chế độ khi có L
+                    if (hasL)
                     {
-                        shouldScroll = true;
-                        scrollUp = true;
-                    }
-                    else if (hasL && hasS && !hasW && !hasA && !hasD)
-                    {
-                        shouldScroll = true;
-                        scrollUp = false;
-                    }
-                    // Kiểm tra scroll ngang (L+A hoặc L+D)
-                    else if (hasL && hasA && !hasW && !hasS && !hasD)
-                    {
-                        shouldScroll = true;
-                        scrollLeft = true;
-                    }
-                    else if (hasL && hasD && !hasW && !hasS && !hasA)
-                    {
-                        shouldScroll = true;
-                        scrollRight = true;
+                        if (mode == MouseControlMode.AWDS)
+                        {
+                            // Chế độ A-W-D-S: L+W/S (up/down), L+A/D (left/right)
+                            if (hasW && !hasS && !hasA && !hasD)
+                            {
+                                shouldScroll = true;
+                                scrollUp = true;
+                            }
+                            else if (hasS && !hasW && !hasA && !hasD)
+                            {
+                                shouldScroll = true;
+                                scrollUp = false;
+                            }
+                            else if (hasA && !hasW && !hasS && !hasD)
+                            {
+                                shouldScroll = true;
+                                scrollLeft = true;
+                            }
+                            else if (hasD && !hasW && !hasS && !hasA)
+                            {
+                                shouldScroll = true;
+                                scrollRight = true;
+                            }
+                        }
+                        else if (mode == MouseControlMode.SEFD)
+                        {
+                            // Chế độ S-E-F-D: L+E/D (up/down), L+S/F (left/right)
+                            if (hasE && !hasS && !hasD && !hasF)
+                            {
+                                shouldScroll = true;
+                                scrollUp = true;
+                            }
+                            else if (hasD && !hasE && !hasS && !hasF)
+                            {
+                                shouldScroll = true;
+                                scrollUp = false;
+                            }
+                            else if (hasS && !hasE && !hasD && !hasF)
+                            {
+                                shouldScroll = true;
+                                scrollLeft = true;
+                            }
+                            else if (hasF && !hasS && !hasE && !hasD)
+                            {
+                                shouldScroll = true;
+                                scrollRight = true;
+                            }
+                        }
                     }
                     // Nếu không có L, thì di chuyển chuột bình thường
-                    else if (!hasL)
+                    else
                     {
                         foreach (var key in pressedKeys)
                         {
-                            switch (key)
+                            if (mode == MouseControlMode.AWDS)
                             {
-                                case Keys.S: dy += 1; break;
-                                case Keys.W: dy -= 1; break;
-                                case Keys.A: dx -= 1; break;
-                                case Keys.D: dx += 1; break;
+                                // Chế độ A-W-D-S
+                                switch (key)
+                                {
+                                    case Keys.S: dy += 1; break;
+                                    case Keys.W: dy -= 1; break;
+                                    case Keys.A: dx -= 1; break;
+                                    case Keys.D: dx += 1; break;
+                                }
+                            }
+                            else if (mode == MouseControlMode.SEFD)
+                            {
+                                // Chế độ S-E-F-D
+                                switch (key)
+                                {
+                                    case Keys.S: dx -= 1; break;  // S = trái
+                                    case Keys.E: dy -= 1; break;  // E = lên
+                                    case Keys.F: dx += 1; break;  // F = phải
+                                    case Keys.D: dy += 1; break;  // D = xuống
+                                }
                             }
                         }
                     }

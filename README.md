@@ -1,6 +1,17 @@
 ﻿# LazyControl
 
+### Mouse Control Mode
+
+LazyControl now supports two mouse control modes:
+
+1. **A-W-D-S Mode (Default)**: Traditional gaming layout
+2. **S-E-F-D Mode (10-finger)**: Optimized for touch typing position
+
+You can switch between modes in the Settings window.
+
 ### Cursor Movement
+
+**A-W-D-S Mode (Default)**:
 
 - Left: `A`
 - Right: `D`
@@ -11,12 +22,32 @@
 - Move to top-right corner: `W D`
 - Move to bottom-right corner: `S D`
 
+**S-E-F-D Mode (10-finger)**:
+
+- Left: `S`
+- Right: `F`
+- Up: `E`
+- Down: `D`
+- Move to top-left corner: `S E`
+- Move to bottom-left corner: `S D`
+- Move to top-right corner: `E F`
+- Move to bottom-right corner: `D F`
+
 ### Scroll
 
-- Scroll left: Press `L` + `W` simultaneously
-- Scroll right: Press `L` + `S` simultaneously
+**A-W-D-S Mode**:
+
+- Scroll left: Press `L` + `A` simultaneously
+- Scroll right: Press `L` + `D` simultaneously
 - Scroll up: Press `L` + `W` simultaneously
 - Scroll down: Press `L` + `S` simultaneously
+
+**S-E-F-D Mode**:
+
+- Scroll left: Press `L` + `S` simultaneously
+- Scroll right: Press `L` + `F` simultaneously
+- Scroll up: Press `L` + `E` simultaneously
+- Scroll down: Press `L` + `D` simultaneously
 
 ### Mouse Click
 

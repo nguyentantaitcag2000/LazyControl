@@ -6,10 +6,17 @@ using System.Threading.Tasks;
 
 namespace LazyControl
 {
+    public enum MouseControlMode
+    {
+        AWDS = 0,  // A-W-D-S (Default)
+        SEFD = 1   // S-E-F-D (10-finger)
+    }
+
     public class AppSettings
     {
         public int EscF1 { get; set; } = 1;
         public int EscF2 { get; set; } = 2;
         public Keys ToggleMouseMode { get; set; } = Keys.Control | Keys.J;
+        public MouseControlMode MouseControlMode { get; set; } = MouseControlMode.AWDS;
     }
 }
